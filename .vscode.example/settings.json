@@ -1,0 +1,12 @@
+{
+	"[json][jsonc][yaml]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[opentofu][opentofu-vars]": {
+		"editor.defaultFormatter": "opentofu.vscode-opentofu"
+	},
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"files.associations": {
+		"**/*.tfvars.example": "opentofu-vars"
+	}
+}

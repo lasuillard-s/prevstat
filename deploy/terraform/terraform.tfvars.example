@@ -1,0 +1,10 @@
+cloudflare_api_token = "cfat_..."
+cloudflare_account_id = "abcd1234..."
+secret_variables = {
+  APP_ID = ""
+  PRIVATE_KEY = ""
+  GITHUB_CLIENT_ID = ""
+  GITHUB_CLIENT_SECRET = ""
+  WEBHOOK_SECRET = ""
+}
+variables = {}

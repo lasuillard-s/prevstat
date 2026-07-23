@@ -1,0 +1,41 @@
+fail_fast: true
+exclude: |
+  (?x)(
+    \.snap$
+  )
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        language: system
+        types_or: [javascript, ts]
+        entry: npm exec eslint
+        args: [--, --fix]
+
+      - id: prettier
+        name: prettier
+        language: system
+        types_or: [javascript, ts, json, yaml]
+        entry: npm exec prettier
+        args: [--, --write]
+
+      - id: typescript
+        name: typescript
+        language: system
+        types_or: [javascript, ts]
+        pass_filenames: false
+        entry: npm run typecheck
+
+      - id: vitest
+        name: vitest
+        language: system
+        types_or: [javascript, ts]
+        pass_filenames: false
+        entry: npm run test

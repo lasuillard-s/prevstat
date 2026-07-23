@@ -1,0 +1,15 @@
+{
+	"configurations": [
+		{
+			"name": "Debug Probot App",
+			"type": "node",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"program": "${workspaceFolder}/node_modules/probot/bin/probot.js",
+			"args": ["run", "${workspaceFolder}/dist/src/app.js"],
+			"preLaunchTask": "npm: build",
+			"skipFiles": ["<node_internals>/**"],
+			"console": "integratedTerminal"
+		}
+	]
+}

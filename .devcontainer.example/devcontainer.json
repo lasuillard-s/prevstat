@@ -1,0 +1,20 @@
+{
+	"name": "lasuillard-s/presta",
+	"image": "mcr.microsoft.com/devcontainers/base:dev-trixie",
+	"features": {
+		"ghcr.io/devcontainers/features/nix:1": {
+			"extraNixConfig": "extra-experimental-features = nix-command flakes"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode",
+				"editorconfig.editorconfig",
+				"vitest.explorer",
+				"opentofu.vscode-opentofu"
+			]
+		}
+	}
+}
