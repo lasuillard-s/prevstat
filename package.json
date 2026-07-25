@@ -18,8 +18,8 @@
 		"url": "https://github.com/lasuillard-s/presta/issues"
 	},
 	"scripts": {
-		"dev": "probot run ./dist/src/app.js",
-		"dev:watch": "nodemon --watch ./src --ext js,ts --exec 'npm run build; npm run dev'",
+		"dev": "tsc && probot run ./dist/src/app.js",
+		"dev:watch": "nodemon --watch ./src --ext js,ts --exec 'tsc; npm run dev'",
 		"build": "node build.js",
 		"fmt": "prettier --write --list-different .",
 		"fmt:check": "prettier --check .",
