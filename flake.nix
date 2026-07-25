@@ -28,6 +28,7 @@
             nodejs_24
             ngrok
             opentofu
+            awscli2
           ];
           shellHook = ''
             pre-commit install

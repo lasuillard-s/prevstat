@@ -1,6 +1,5 @@
 .devcontainer
 .vscode
-.wrangler
 coverage
 lib
 node_modules

@@ -8,23 +8,23 @@ Please report issues in our [GitHub repository](https://github.com/lasuillard-s/
 
 ## 🏗️ Project overview
 
-This project is a GitHub App [Octokit](https://github.com/octokit) and TypeScript. It watches your repository for workflow completion and download artifacts to host temporarily on [Cloudflare](https://workers.cloudflare.com/) so that you can preview them in your browser.
+This project is a GitHub App built with [Probot](https://probot.github.io/) and TypeScript. It watches your repository for workflow completion and download artifacts to host temporarily on Amazon CloudFront so that you can preview them in your browser.
 
 ### 🛠️ Tech stack
 
 This project uses the following tech stack:
 
 - [TypeScript](https://www.typescriptlang.org/) on [Node.js](https://nodejs.org/) 24+
-- [Octokit](https://github.com/octokit) for the GitHub App runtime
+- [Probot](https://probot.github.io/) for the GitHub App runtime
 - [Vitest](https://vitest.dev/), [ESLint](https://eslint.org/), and [Prettier](https://prettier.io/) for testing and code quality
 
 ### 📂 Key directory structure
 
 - `src/`: Application source code
 - `test/`: Unit tests and fixtures
+- `app.yaml`: GitHub App manifest
 - `flake.nix`: Nix Flake configuration for the development environment
 - `Justfile`: Development and maintenance commands
-- `vercel.ts`: Vercel build configuration
 
 ## 🔧 Set up the development environment
 
@@ -42,4 +42,4 @@ Please submit pull requests on GitHub. Before opening a PR, make sure your chang
 
 ## 🚀 Release process
 
-This project is provided as-is. The intended use is to fork or clone the source code and deploy it to Cloudflare using Terraform. See [deploy/terraform/README.md](deploy/terraform/README.md) for more information.
+This project is provided as-is. The intended use is to fork or clone the source code and deploy it to AWS using Terraform. See [deploy/terraform/README.md](deploy/terraform/README.md) for more information.

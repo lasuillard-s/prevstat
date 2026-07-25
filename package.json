@@ -2,11 +2,7 @@
 	"name": "presta",
 	"version": "0.1.0",
 	"private": true,
-	"description": "A GitHub App to automate validating your repository dev container configuration.",
-	"keywords": [
-		"github-app",
-		"wrangler"
-	],
+	"readme": "README.md",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
@@ -22,8 +18,10 @@
 		"url": "https://github.com/lasuillard-s/presta/issues"
 	},
 	"scripts": {
-		"dev": "wrangler dev",
-		"build": "node build.js",
+		"dev": "probot run ./dist/src/app.js",
+		"dev:watch": "nodemon --watch ./src --ext js,ts --exec 'npm run build; npm run dev'",
+		"build": "tsc",
+		"build:watch": "tsc --watch",
 		"fmt": "prettier --write --list-different .",
 		"fmt:check": "prettier --check .",
 		"lint": "eslint .",
@@ -34,7 +32,9 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@octokit/app": "16.1.2",
+		"adm-zip": "0.6.0",
+		"minimatch": "10.2.5",
+		"probot": "14.3.2",
 		"zod": "4.4.3"
 	},
 	"devEngines": {
@@ -50,26 +50,21 @@
 		}
 	},
 	"devDependencies": {
-		"@eslint/eslintrc": "3.3.5",
+		"@eslint/eslintrc": "3.3.6",
 		"@eslint/js": "10.0.1",
-		"@octokit/app": "16.1.2",
-		"@types/node": "24.13.2",
-		"@vitest/coverage-v8": "4.1.9",
-		"esbuild": "0.28.1",
-		"esbuild-plugin-clean": "1.0.1",
+		"@types/adm-zip": "0.5.8",
+		"@types/node": "24.13.3",
+		"@vitest/coverage-v8": "4.1.10",
 		"eslint-config-prettier": "10.1.8",
-		"eslint-plugin-jsdoc": "63.0.10",
+		"eslint-plugin-jsdoc": "63.1.0",
 		"globals": "17.7.0",
+		"ioredis": "5.11.1",
 		"nock": "14.0.16",
-		"prettier": "3.9.1",
+		"nodemon": "3.1.14",
+		"prettier": "3.9.5",
+		"smee-client": "5.0.0",
 		"typescript": "6.0.3",
-		"typescript-eslint": "8.62.0",
-		"vitest": "4.1.9",
-		"wrangler": "4.113.0"
-	},
-	"allowScripts": {
-		"esbuild@0.28.1": true,
-		"sharp@0.34.5": true,
-		"workerd@1.20260721.1": true
+		"typescript-eslint": "8.64.0",
+		"vitest": "4.1.10"
 	}
 }

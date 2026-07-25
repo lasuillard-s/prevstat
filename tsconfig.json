@@ -5,6 +5,8 @@
 		"module": "nodenext",
 		"declaration": true,
 		"sourceMap": true,
+		"rootDir": ".",
+		"outDir": "./dist",
 		"strict": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,

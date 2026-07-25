@@ -1,7 +1,0 @@
-{
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"send_metrics": false,
-	"compatibility_date": "2026-07-23",
-	"compatibility_flags": ["nodejs_compat"],
-	"main": "./src/app.ts"
-}
