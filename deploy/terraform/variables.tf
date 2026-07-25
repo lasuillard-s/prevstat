@@ -1,24 +1,7 @@
-variable "cloudflare_api_token" {
-  type        = string
-  sensitive   = true
-  description = "Cloudflare API token"
-}
-
-variable "cloudflare_account_id" {
-  type        = string
-  description = "Cloudflare account ID"
-}
-
 variable "app_name" {
   type        = string
   description = "Application name"
   default     = "presta"
-}
-
-variable "app_js_relative_path" {
-  type        = string
-  description = "Relative path to built app.js file, relative from current module directory"
-  default     = "../../dist/app.js"
 }
 
 variable "variables" {

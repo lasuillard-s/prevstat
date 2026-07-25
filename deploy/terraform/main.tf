@@ -1,69 +1,59 @@
 terraform {
   required_providers {
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "~> 5.0"
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
     }
   }
 }
 
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+provider "aws" {
+  default_tags {
+    tags = {
+      Project = "presta"
+      Source = "https://github.com/lasuillard-s/presta.git"
+    }
+  }
 }
 
 locals {
-  app_js_path = "${path.module}/${var.app_js_relative_path}"
+  project_root = abspath("${path.module}/../../")
 }
 
-resource "cloudflare_workers_script" "app" {
-  account_id = var.cloudflare_account_id
+resource "null_resource" "build" {
+  triggers = {
+    run_always = timestamp()
+  }
 
-  script_name         = var.app_name
-  compatibility_date  = "2026-07-23"
-  compatibility_flags = ["nodejs_compat"]
-
-  main_module    = "app.js"
-  content_file   = local.app_js_path
-  content_sha256 = filesha256(local.app_js_path)
-
-  bindings = concat(
-    [
-      for name, value in var.secret_variables :
-      {
-        type = "secret_text"
-        name = name
-        text = value
-      }
-    ],
-    [
-      for name, value in var.variables :
-      {
-        name = name
-        text = value
-      }
-    ],
-  )
-
-  observability = {
-    enabled            = true
-    head_sampling_rate = 1.0
-    logs = {
-      enabled            = true
-      head_sampling_rate = 1.0
-      invocation_logs    = true
-      persist            = true
-    }
-    traces = {
-      enabled            = false
-      head_sampling_rate = 1.0
-    }
+  provisioner "local-exec" {
+    working_dir = local.project_root
+    command     = "npm run build"
   }
 }
 
-resource "cloudflare_workers_script_subdomain" "app" {
-  account_id = var.cloudflare_account_id
+data "archive_file" "dist" {
+  depends_on = [null_resource.build]
 
-  script_name      = cloudflare_workers_script.app.script_name
-  enabled          = true
-  previews_enabled = false
+  type        = "zip"
+  source_dir  = "${local.project_root}/dist"
+  output_path = "${path.module}/dist.zip"
+}
+
+module "lambda_function" {
+  depends_on = [null_resource.build]
+  source     = "terraform-aws-modules/lambda/aws"
+  version    = "~> 8.0"
+
+  function_name         = var.app_name
+  description           = "Main handler function of ${var.app_name} app."
+  runtime               = "nodejs24.x"
+  handler               = "lambda.handler"
+  environment_variables = merge(var.variables, var.secret_variables)
+
+  create_package = false
+  local_existing_package = data.archive_file.dist.output_path
 }

@@ -15,7 +15,8 @@
 		"moduleResolution": "nodenext",
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"types": ["node"]
+		"types": ["node"],
+		"skipLibCheck": true
 	},
 	"include": ["src/"],
 	"compileOnSave": false
