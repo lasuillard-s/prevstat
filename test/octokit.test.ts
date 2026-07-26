@@ -1,5 +1,5 @@
 import { describe, expect } from 'vitest';
-import { Repo } from '../src/types.js';
+import { Repo } from '../src/octokit.js';
 import { test as it } from './helpers.js';
 
 describe('Repo', () => {
