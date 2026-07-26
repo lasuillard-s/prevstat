@@ -42,4 +42,4 @@ Please submit pull requests on GitHub. Before opening a PR, make sure your chang
 
 ## 🚀 Release process
 
-This project is provided as-is. The intended use is to fork or clone the source code and deploy it to AWS using Terraform. See [deploy/terraform/README.md](deploy/terraform/README.md) for more information.
+This project is provided as-is. The intended use is to fork or clone the source code and deploy it to AWS using Terraform. See [deploy/terraform-aws/README.md](deploy/terraform-aws/README.md) for more information.
