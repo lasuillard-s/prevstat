@@ -10,7 +10,7 @@ const appFn: ApplicationFunction = (app) => {
  * Returns the Express app configured with the Probot middleware and custom routes.
  * @returns Express app
  */
-export async function getApp() {
+export async function createApp() {
 	const express = Express();
 
 	// Probot webhook middleware
