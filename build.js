@@ -7,9 +7,9 @@ const sourceRoot = 'src';
 
 await esbuild.build({
 	plugins: [clean({ patterns: [outdir] })],
-	entryPoints: [path.join(sourceRoot, 'lambda.ts')],
+	entryPoints: [path.join(sourceRoot, 'aws-lambda.ts')],
 	bundle: true,
-	outfile: path.join(outdir, 'lambda.mjs'),
+	outfile: path.join(outdir, 'aws-lambda.mjs'),
 	sourceRoot,
 	platform: 'node',
 	format: 'esm',

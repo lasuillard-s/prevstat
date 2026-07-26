@@ -18,7 +18,7 @@
 		"url": "https://github.com/lasuillard-s/presta/issues"
 	},
 	"scripts": {
-		"dev": "tsc; probot run ./dist/src/app.js",
+		"dev": "tsc; node ./dist/src/main.js",
 		"dev:watch": "nodemon --watch ./src --ext js,ts --exec 'npm run dev'",
 		"build": "node build.js",
 		"fmt": "prettier --write --list-different .",
@@ -30,7 +30,14 @@
 		"test:watch": "vitest --silent --watch"
 	},
 	"type": "module",
-	"dependencies": {},
+	"dependencies": {
+		"@codegenie/serverless-express": "5.0.0",
+		"adm-zip": "0.6.0",
+		"express": "5.2.1",
+		"minimatch": "10.2.5",
+		"probot": "14.3.2",
+		"zod": "4.4.3"
+	},
 	"devEngines": {
 		"runtime": {
 			"name": "node",
@@ -46,27 +53,23 @@
 	"devDependencies": {
 		"@eslint/eslintrc": "3.3.6",
 		"@eslint/js": "10.0.1",
-		"@probot/adapter-aws-lambda-serverless": "4.0.3",
 		"@types/adm-zip": "0.5.8",
+		"@types/express": "5.0.6",
 		"@types/node": "24.13.3",
 		"@vitest/coverage-v8": "4.1.10",
-		"adm-zip": "0.6.0",
-		"esbuild-plugin-clean": "^1.0.1",
-		"esbuild": "^0.28.1",
+		"esbuild": "0.28.1",
+		"esbuild-plugin-clean": "1.0.1",
 		"eslint-config-prettier": "10.1.8",
 		"eslint-plugin-jsdoc": "63.1.0",
 		"globals": "17.7.0",
 		"ioredis": "5.11.1",
-		"minimatch": "10.2.5",
 		"nock": "14.0.16",
 		"nodemon": "3.1.14",
 		"prettier": "3.9.5",
-		"probot": "14.3.2",
 		"smee-client": "5.0.0",
-		"typescript-eslint": "8.64.0",
 		"typescript": "6.0.3",
-		"vitest": "4.1.10",
-		"zod": "4.4.3"
+		"typescript-eslint": "8.64.0",
+		"vitest": "4.1.10"
 	},
 	"allowScripts": {
 		"esbuild@0.28.1": true

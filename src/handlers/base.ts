@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { ProbotOctokit } from 'probot';
 import { Context } from 'probot';
 import { AppConfig } from '../config.js';
+import { Repo } from '../octokit.js';
 
 export const CHECK_RUN_NAME = 'Dev Container Check';
 
@@ -33,4 +34,12 @@ export abstract class BaseHandler<C extends Context = Context> {
 	 * Handle the webhook event. Implemented by concrete handler subclasses.
 	 */
 	abstract handle(): Promise<void>;
+
+	/**
+	 * Returns the owner/repo of the repository the event was delivered for.
+	 * @returns The owner and repo of the event's repository
+	 */
+	protected repo(): Repo {
+		return Repo.fromContext(this.context);
+	}
 }
