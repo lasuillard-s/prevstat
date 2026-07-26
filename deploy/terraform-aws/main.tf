@@ -1,25 +1,3 @@
-terraform {
-  required_providers {
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
-    }
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.0"
-    }
-  }
-}
-
-provider "aws" {
-  default_tags {
-    tags = {
-      Project = "presta"
-      Source = "https://github.com/lasuillard-s/presta.git"
-    }
-  }
-}
-
 locals {
   project_root = abspath("${path.module}/../../")
 }
