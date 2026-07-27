@@ -19,7 +19,7 @@
 	},
 	"scripts": {
 		"dev": "tsc; node ./dist/src/main.js",
-		"dev:watch": "nodemon --watch ./src --ext js,ts --exec 'npm run dev'",
+		"dev:watch": "nodemon",
 		"build": "node build.js",
 		"fmt": "prettier --write --list-different .",
 		"fmt:check": "prettier --check .",
