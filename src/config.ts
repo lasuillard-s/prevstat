@@ -3,7 +3,22 @@ import * as z from 'zod';
 import { errorToString } from './utils.js';
 
 export const AppConfig = z.object({
-	EXAMPLE: z.string().default('default')
+	GITHUB_CLIENT_ID: z.string().describe('GitHub OAuth App Client ID'),
+	GITHUB_CLIENT_SECRET: z.string().describe('GitHub OAuth App Client Secret'),
+	CLOUDFRONT_DOMAIN: z
+		.string()
+		.describe('CloudFront domain name for the app (e.g. https://blabblah.cloudfront.net)'),
+	CLOUDFRONT_PRIVATE_KEY: z.string().describe('CloudFront private key for the cookie signing'),
+	CLOUDFRONT_KEY_PAIR_ID: z.string().describe('CloudFront key pair ID for the cookie signing'),
+	CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: z
+		.int()
+		.describe('Expiration time for the signed cookie in seconds. Default is 15 minutes.')
+		.default(15 * 60), // Default to 15 minutes
+	JWT_SECRET: z.string().describe('Secret for signing JWT tokens'),
+	JWT_EXPIRATION_SECONDS: z
+		.int()
+		.describe('Expiration time for the JWT token in seconds. Default is 5 minutes.')
+		.default(5 * 60) // Default to 5 minutes
 });
 export type AppConfig = z.infer<typeof AppConfig>;
 

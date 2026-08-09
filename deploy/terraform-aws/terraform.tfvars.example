@@ -1,8 +1,9 @@
-secret_variables = {
-  APP_ID = ""
-  PRIVATE_KEY = ""
-  GITHUB_CLIENT_ID = ""
-  GITHUB_CLIENT_SECRET = ""
-  WEBHOOK_SECRET = ""
-}
-variables = {}
+app_id               = "0000000"
+private_key          = <<EOF
+-----BEGIN RSA PRIVATE KEY-----
+blahblah
+-----END RSA PRIVATE KEY-----
+EOF
+webhook_secret       = "your-webhook-secret"
+github_client_id     = "your-github-app-client-id"
+github_client_secret = "your-github-app-client-secret"

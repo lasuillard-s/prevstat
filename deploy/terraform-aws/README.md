@@ -1,3 +1,3 @@
-# Deploy using Terraform
+# Deploy to AWS with Terraform
 
-It is the recommended way to deploy Presta application using Terraform so that you can easily deploy and destroy cleanly.
+In this guide, we will walk you through the steps to deploy your application to AWS using Terraform. We will also use Terraform Cloud to store states and manage our infrastructure as code with Version Control Workflow feature.

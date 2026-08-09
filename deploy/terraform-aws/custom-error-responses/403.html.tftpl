@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Presta</title>
+		<script>
+			// The error page is served from S3, so we need to use the CloudFront domain
+			// to redirect to the Lambda function for authentication.
+			const cloudfrontDomain = '${CLOUDFRONT_DOMAIN}';
+
+			// Redirect user to authentication page then back to the current page after authentication
+			const currentPath = window.location.href;
+			const redirectUri = new URL('/api/auth', `https://$${cloudfrontDomain}`);
+			redirectUri.searchParams.set('redirect_uri', currentPath);
+
+			function authenticate() {
+				window.location.replace(redirectUri);
+			}
+		</script>
+	</head>
+	<body>
+		<!-- TODO: Give some styling :) -->
+		<p>Please authenticate to GitHub to view protected document</p>
+		<button onclick="authenticate()">Authenticate</button>
+	</body>
+</html>

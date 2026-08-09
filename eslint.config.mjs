@@ -11,6 +11,6 @@ export default [
 	js.configs.recommended,
 	...ts.configs.recommended,
 	prettier,
-	jsdoc.configs['flat/recommended-typescript'],
+	...jsdoc.configs['flat/recommended-mixed'],
 	{ languageOptions: { globals: { ...globals.node } } }
 ];

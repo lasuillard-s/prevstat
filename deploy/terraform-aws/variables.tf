@@ -4,25 +4,46 @@ variable "app_name" {
   default     = "presta"
 }
 
-variable "variables" {
-  type        = map(string)
-  description = "Variables for the application"
-  default     = {}
+variable "app_id" {
+  type        = string
+  description = "The ID of your GitHub App (`APP_ID`)."
+}
+
+variable "private_key" {
+  type        = string
+  sensitive   = true
+  description = "The private key of your GitHub App (`PRIVATE_KEY`)."
+}
+
+variable "webhook_secret" {
+  type        = string
+  sensitive   = true
+  description = "The webhook secret of your GitHub App (`WEBHOOK_SECRET`)."
+}
+
+variable "github_client_id" {
+  type        = string
+  sensitive   = true
+  description = "The client ID of your GitHub App (`GITHUB_CLIENT_ID`)."
+}
+
+variable "github_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "The client secret of your GitHub App (`GITHUB_CLIENT_SECRET`)."
 }
 
 variable "secret_variables" {
   type        = map(string)
   sensitive   = true
-  description = "Secret variables for the application"
+  description = "Additional secret variables for the application"
   default     = {}
+}
 
-  validation {
-    condition = alltrue(
-      [
-        for k in ["APP_ID", "PRIVATE_KEY", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "WEBHOOK_SECRET"]
-        : contains(keys(var.secret_variables), k)
-      ]
-    )
-    error_message = "secret_variables must contain the following keys: APP_ID, PRIVATE_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, WEBHOOK_SECRET"
+variable "variables" {
+  type        = map(string)
+  description = "Additional variables for the application"
+  default = {
+    "LOG_LEVEL" = "info"
   }
 }

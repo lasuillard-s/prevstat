@@ -1,6 +1,5 @@
 {
 	"name": "presta",
-	"version": "0.1.0",
 	"private": true,
 	"readme": "README.md",
 	"license": "MIT",
@@ -31,9 +30,13 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@aws-sdk/client-ssm": "3.1105.0",
+		"@aws-sdk/cloudfront-signer": "3.1095.0",
 		"@codegenie/serverless-express": "5.0.0",
+		"@octokit/auth-oauth-user": "6.0.2",
 		"adm-zip": "0.6.0",
 		"express": "5.2.1",
+		"jsonwebtoken": "9.0.3",
 		"minimatch": "10.2.5",
 		"probot": "14.3.2",
 		"zod": "4.4.3"
@@ -54,7 +57,9 @@
 		"@eslint/eslintrc": "3.3.6",
 		"@eslint/js": "10.0.1",
 		"@types/adm-zip": "0.5.8",
+		"@types/aws-cloudfront-function": "1.0.8",
 		"@types/express": "5.0.6",
+		"@types/jsonwebtoken": "9.0.10",
 		"@types/node": "24.13.3",
 		"@vitest/coverage-v8": "4.1.10",
 		"esbuild": "0.28.1",
