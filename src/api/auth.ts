@@ -5,6 +5,7 @@ import express, { CookieOptions, Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { Probot } from 'probot';
 import type { AppConfig } from '../config.js';
+import { buildArtifactPath } from '../assets.js';
 
 export const router = express.Router();
 
@@ -106,9 +107,10 @@ router.get(
 		// Bake CloudFront signed cookies for the user to access the private document
 		const validSeconds = config.CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS;
 		const expiresAt = new Date(Date.now() + validSeconds * 1_000);
-		const signedCookies = bakeCloudFrontCookies(`/private/${owner}/${repo}/*`, expiresAt, config);
+		const basePath = buildArtifactPath('private', owner, repo);
+		const signedCookies = bakeCloudFrontCookies(`${basePath}/*`, expiresAt, config);
 		const cookieOptions: CookieOptions = {
-			path: `/private/${owner}/${repo}/`,
+			path: `${basePath}/`,
 			httpOnly: true,
 			secure: true,
 			sameSite: 'lax',
