@@ -83,6 +83,16 @@ data "aws_iam_policy_document" "lambda_function" {
       "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
     ]
   }
+
+  statement {
+    sid = "AllowLambdaToUploadArtifactsToS3"
+    actions = [
+      "s3:PutObject"
+    ]
+    resources = [
+      "${module.s3_bucket.s3_bucket_arn}/*"
+    ]
+  }
 }
 
 # https://registry.terraform.io/modules/terraform-aws-modules/lambda/aws/latest
