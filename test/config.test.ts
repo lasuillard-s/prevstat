@@ -23,7 +23,10 @@ describe('loadConfig', () => {
 		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'test-key-pair-id');
 		vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
 		vi.stubEnv('S3_BUCKET_NAME', 'test-bucket');
-		vi.stubEnv('ARTIFACT_PATTERNS', 'owner/repo:workflow:artifact, another/repo:*:*');
+		vi.stubEnv(
+			'ARTIFACT_PATTERNS',
+			'owner/repo:.github/workflows/ci.yaml:artifact, another/repo:*:*'
+		);
 
 		// Act & Assert
 		const config = loadConfig(probot);
@@ -37,7 +40,7 @@ describe('loadConfig', () => {
 			JWT_SECRET: 'test-jwt-secret',
 			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'test-bucket',
-			ARTIFACT_PATTERNS: ['owner/repo:workflow:artifact', 'another/repo:*:*']
+			ARTIFACT_PATTERNS: ['owner/repo:.github/workflows/ci.yaml:artifact', 'another/repo:*:*']
 		});
 	});
 

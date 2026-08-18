@@ -37,7 +37,7 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 
 		const artifacts = await this.listArtifacts();
 		const processPromises = artifacts.map(async (artifact) => {
-			const artifactFqn = `${payload.repository.full_name}:${payload.workflow_run.name}:${artifact.name}`;
+			const artifactFqn = `${payload.repository.full_name}:${payload.workflow_run.path}:${artifact.name}`;
 			if (this.isArtifactMatched(artifactFqn)) {
 				this.log.info(`Artifact matched: ${artifactFqn}. Processing...`);
 				await this.processArtifact(artifact);

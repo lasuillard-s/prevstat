@@ -23,7 +23,7 @@ export const AppConfig = z.object({
 	ARTIFACT_PATTERNS: z
 		.string()
 		.describe(
-			'Comma separated list of artifact glob patterns. Format: owner/repo:workflow:artifact'
+			'Comma separated list of artifact glob patterns. Format: owner/repo:workflow_path:artifact (e.g. owner/repo:.github/workflows/ci.yaml:artifact)'
 		)
 		.transform((val) => val.split(',').map((s) => s.trim()))
 });

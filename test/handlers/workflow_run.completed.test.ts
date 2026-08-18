@@ -47,7 +47,7 @@ describe('WorkflowRunCompletedHandler', () => {
 			JWT_SECRET: 'jwt-secret',
 			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'test-bucket',
-			ARTIFACT_PATTERNS: ['my-org/my-repo:CI:build-output*']
+			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
 		};
 
 		mockSend = vi.fn().mockResolvedValue({});
@@ -91,6 +91,7 @@ describe('WorkflowRunCompletedHandler', () => {
 			workflow_run: {
 				id: 12345,
 				name: 'CI',
+				path: '.github/workflows/ci.yaml',
 				head_sha: 'abcdef123456'
 			},
 			...payloadOverrides
