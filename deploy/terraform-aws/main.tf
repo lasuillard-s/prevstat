@@ -65,6 +65,7 @@ resource "aws_ssm_parameter" "lambda_app_config" {
 
 data "aws_iam_policy_document" "lambda_function" {
   statement {
+    sid = "AllowLambdaToReadSSMParameter"
     actions = [
       "ssm:GetParameter"
     ]
@@ -76,6 +77,7 @@ data "aws_iam_policy_document" "lambda_function" {
   }
 
   statement {
+    sid = "AllowLambdaToDecryptSSMParameter"
     actions = [
       "kms:Decrypt"
     ]
