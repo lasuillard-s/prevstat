@@ -1,6 +1,7 @@
 .devcontainer
 .vscode
 coverage
+html
 lib
 node_modules
 *.pem

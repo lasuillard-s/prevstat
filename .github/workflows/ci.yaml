@@ -60,7 +60,17 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm run test
+        run: npm run test -- --reporter=html
+
+      # Dogfooding the app with the Vitest HTML reporter
+      - name: Upload test HTML report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: vitest-html-report
+          path: |
+            html/
+          retention-days: 1
 
       - name: Upload test results to codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
