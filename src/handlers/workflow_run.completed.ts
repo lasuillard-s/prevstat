@@ -32,7 +32,7 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 		const { payload } = this.context;
 
 		this.log.debug(
-			`Received workflow run completed event from repository ${payload.repository.full_name}, workflow ${payload.workflow_run.name}.`
+			`Received workflow run completed event from repository ${payload.repository.full_name}, workflow ${payload.workflow_run.path}.`
 		);
 
 		const artifacts = await this.listArtifacts();
