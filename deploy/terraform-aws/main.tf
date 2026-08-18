@@ -234,15 +234,6 @@ module "cdn" {
     }
   }
 
-  cloudfront_functions = {
-    "viewer-request" = {
-      runtime = "cloudfront-js-2.0"
-      comment = "Viewer request function for ${var.app_name} app."
-      code    = file("${path.module}/cloudfront-functions/viewer-request.js")
-      publish = true
-    }
-  }
-
   # Public documents (evaluated at last)
   default_cache_behavior = {
     target_origin_id       = "s3_bucket"
@@ -250,13 +241,6 @@ module "cdn" {
     cached_methods         = ["GET", "HEAD"]
     viewer_protocol_policy = "redirect-to-https"
     cache_policy_name      = "Managed-CachingOptimized"
-
-    function_association = {
-      "viewer-request" = {
-        function_key = "viewer-request"
-      }
-    }
-
   }
 
   ordered_cache_behavior = [
@@ -279,12 +263,6 @@ module "cdn" {
       trusted_key_groups     = [aws_cloudfront_key_group.default.id]
       viewer_protocol_policy = "redirect-to-https"
       cache_policy_name      = "Managed-CachingOptimized"
-
-      function_association = {
-        "viewer-request" = {
-          function_key = "viewer-request"
-        }
-      }
     },
   ]
 
