@@ -59,7 +59,7 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "S3_BUCKET_NAME" : module.s3_bucket.s3_bucket_id,
       "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
-    var.secret_variables
+    var.secret_variables // User-provided secrets will OVERRIDE
   ))
 }
 
@@ -114,23 +114,18 @@ module "lambda_function" {
 
   timeout = 30
   environment_variables = merge(
-    var.variables,
     {
-      // Probot
-      "APP_ID" : var.app_id,
-      "PRIVATE_KEY" : var.private_key,
-      "WEBHOOK_SECRET" : var.webhook_secret,
-      "GITHUB_CLIENT_ID" : var.github_client_id,
-      "GITHUB_CLIENT_SECRET" : var.github_client_secret,
-      // App
       "LAMBDA_SSM_PARAMETER_NAME" : local.lambda_app_config_name,
-    }
+    },
+    var.variables, // User-provided variables will OVERRIDE
   )
 
   attach_policy_json = true
   policy_json        = data.aws_iam_policy_document.lambda_function.json
 
   create_lambda_function_url = true
+
+  cloudwatch_logs_retention_in_days = 1
 }
 
 data "aws_iam_policy_document" "for_cloudfront" {
