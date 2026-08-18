@@ -4,58 +4,45 @@ import { Octokit } from '@octokit/core';
 import express, { CookieOptions, Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { Probot } from 'probot';
-import type { AppConfig } from '../config.js';
-import { buildArtifactPath } from '../assets.js';
+import { buildArtifactPath } from '../../assets.js';
+import type { AppConfig } from '../../config.js';
 
 export const router = express.Router();
 
-/*
-Local test-only route for documents served by CloudFront.
+router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string }>, res) => {
+	const probot = req.app.locals.probot as Probot;
+	const config = req.app.locals.config as AppConfig;
+	const clientId = config.GITHUB_CLIENT_ID;
 
-This route is unreachable in production, as CloudFront will serve the documents (/private)
-directly from S3.
-*/
-router.get('/private/:owner/:repo/:workflowRunId/:artifactName', (req, res) => {
-	return res.status(200).send({ ok: true, url: req.url, params: req.params, query: req.query });
+	const documentUri = req.query.redirect_uri;
+	if (!documentUri) {
+		return res.status(400).send('Missing redirect URI');
+	}
+
+	// Prepare parameters for login redirection
+	const proto = req.protocol;
+	const host = config.CLOUDFRONT_DOMAIN;
+	const redirectUri = new URL('/api/auth/callback', `${proto}://${host}`);
+	const state = encryptState(
+		{
+			documentUri: documentUri
+		},
+		config
+	);
+
+	// Build the GitHub login URL
+	const githubOAuthUrl = new URL('https://github.com/login/oauth/authorize');
+	githubOAuthUrl.searchParams.set('client_id', clientId);
+	githubOAuthUrl.searchParams.set('redirect_uri', redirectUri.href);
+	githubOAuthUrl.searchParams.set('state', state);
+
+	// Redirect to GitHub login
+	probot.log.debug(`Redirecting user (${req.ip}) to GitHub login`);
+	return res.redirect(githubOAuthUrl.href);
 });
 
 router.get(
-	'/api/auth',
-	(req: Request<object, unknown, unknown, { redirect_uri?: string }>, res) => {
-		const probot = req.app.locals.probot as Probot;
-		const config = req.app.locals.config as AppConfig;
-		const clientId = config.GITHUB_CLIENT_ID;
-
-		const documentUri = req.query.redirect_uri;
-		if (!documentUri) {
-			return res.status(400).send('Missing redirect URI');
-		}
-
-		// Prepare parameters for login redirection
-		const proto = req.protocol;
-		const host = config.CLOUDFRONT_DOMAIN;
-		const redirectUri = new URL('/api/auth/callback', `${proto}://${host}`);
-		const state = encryptState(
-			{
-				documentUri: documentUri
-			},
-			config
-		);
-
-		// Build the GitHub login URL
-		const githubOAuthUrl = new URL('https://github.com/login/oauth/authorize');
-		githubOAuthUrl.searchParams.set('client_id', clientId);
-		githubOAuthUrl.searchParams.set('redirect_uri', redirectUri.href);
-		githubOAuthUrl.searchParams.set('state', state);
-
-		// Redirect to GitHub login
-		probot.log.debug(`Redirecting user (${req.ip}) to GitHub login`);
-		return res.redirect(githubOAuthUrl.href);
-	}
-);
-
-router.get(
-	'/api/auth/callback',
+	'/callback',
 	async (req: Request<object, unknown, unknown, { code: string; state: string }>, res) => {
 		const probot = req.app.locals.probot as Probot;
 		const config = req.app.locals.config as AppConfig;

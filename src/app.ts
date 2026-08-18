@@ -1,9 +1,8 @@
 import express from 'express';
 import { ApplicationFunction, createNodeMiddleware, createProbot } from 'probot';
-import { router as authRouter } from './api/auth.js';
 import { AppConfig, loadConfig } from './config.js';
 import WorkflowRunCompletedHandler from './handlers/workflow_run.completed.js';
-import { errorToString } from './utils.js';
+import { router as apiRouter } from './routes/api/index.js';
 
 /**
  * Returns the Express app configured with the Probot middleware and custom routes.
@@ -31,15 +30,16 @@ export async function createApp(): Promise<express.Express> {
 	app.use(express.json());
 
 	// Register routes
-	app.use('/', authRouter);
+	app.use('/api', apiRouter);
 
 	// Register event listeners
 	// NOTE: Handlers are not awaited here because they are expected to handle events asynchronously,
 	//       notifying GitHub of the event receipt (10s timeout) while processing the event in the background.
+	probot.onError((error) => {
+		probot.log.error(error, 'Unhandled error caught');
+	});
 	probot.on('workflow_run.completed', async (context) => {
-		new WorkflowRunCompletedHandler(context, config).handle().catch((error) => {
-			context.log.error(`Error handling workflow_run.completed event: ${errorToString(error)}`);
-		});
+		await new WorkflowRunCompletedHandler(context, config).handle();
 	});
 
 	return app;
