@@ -30,6 +30,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@aws-sdk/client-s3": "3.1106.0",
 		"@aws-sdk/client-ssm": "3.1105.0",
 		"@aws-sdk/cloudfront-signer": "3.1095.0",
 		"@codegenie/serverless-express": "5.0.0",
@@ -37,6 +38,7 @@
 		"adm-zip": "0.6.0",
 		"express": "5.2.1",
 		"jsonwebtoken": "9.0.3",
+		"mime-types": "3.0.2",
 		"minimatch": "10.2.5",
 		"probot": "14.3.2",
 		"zod": "4.4.3"
@@ -60,6 +62,7 @@
 		"@types/aws-cloudfront-function": "1.0.8",
 		"@types/express": "5.0.6",
 		"@types/jsonwebtoken": "9.0.10",
+		"@types/mime-types": "3.0.1",
 		"@types/node": "24.13.3",
 		"@vitest/coverage-v8": "4.1.10",
 		"esbuild": "0.28.1",
