@@ -22,6 +22,8 @@ describe('loadConfig', () => {
 		vi.stubEnv('CLOUDFRONT_PRIVATE_KEY', 'test-private-key');
 		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'test-key-pair-id');
 		vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
+		vi.stubEnv('S3_BUCKET_NAME', 'test-bucket');
+		vi.stubEnv('ARTIFACT_PATTERNS', 'owner/repo:workflow:artifact, another/repo:*:*');
 
 		// Act & Assert
 		const config = loadConfig(probot);
@@ -33,7 +35,9 @@ describe('loadConfig', () => {
 			CLOUDFRONT_KEY_PAIR_ID: 'test-key-pair-id',
 			CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: 900,
 			JWT_SECRET: 'test-jwt-secret',
-			JWT_EXPIRATION_SECONDS: 300
+			JWT_EXPIRATION_SECONDS: 300,
+			S3_BUCKET_NAME: 'test-bucket',
+			ARTIFACT_PATTERNS: ['owner/repo:workflow:artifact', 'another/repo:*:*']
 		});
 	});
 
@@ -45,6 +49,8 @@ describe('loadConfig', () => {
 		vi.stubEnv('CLOUDFRONT_PRIVATE_KEY', 'custom-private-key');
 		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'custom-key-pair-id');
 		vi.stubEnv('JWT_SECRET', 'custom-jwt-secret');
+		vi.stubEnv('S3_BUCKET_NAME', 'custom-bucket');
+		vi.stubEnv('ARTIFACT_PATTERNS', 'custom/repo:*:*');
 
 		// Act & Assert
 		const config = loadConfig(probot);
@@ -54,7 +60,9 @@ describe('loadConfig', () => {
 			CLOUDFRONT_DOMAIN: 'https://custom.cloudfront.net',
 			CLOUDFRONT_PRIVATE_KEY: 'custom-private-key',
 			CLOUDFRONT_KEY_PAIR_ID: 'custom-key-pair-id',
-			JWT_SECRET: 'custom-jwt-secret'
+			JWT_SECRET: 'custom-jwt-secret',
+			S3_BUCKET_NAME: 'custom-bucket',
+			ARTIFACT_PATTERNS: ['custom/repo:*:*']
 		});
 	});
 

@@ -18,7 +18,14 @@ export const AppConfig = z.object({
 	JWT_EXPIRATION_SECONDS: z
 		.int()
 		.describe('Expiration time for the JWT token in seconds. Default is 5 minutes.')
-		.default(5 * 60) // Default to 5 minutes
+		.default(5 * 60), // Default to 5 minutes
+	S3_BUCKET_NAME: z.string().describe('S3 Bucket name for artifact uploads'),
+	ARTIFACT_PATTERNS: z
+		.string()
+		.describe(
+			'Comma separated list of artifact glob patterns. Format: owner/repo:workflow:artifact'
+		)
+		.transform((val) => val.split(',').map((s) => s.trim()))
 });
 export type AppConfig = z.infer<typeof AppConfig>;
 

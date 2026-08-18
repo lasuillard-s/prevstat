@@ -33,6 +33,11 @@ variable "github_client_secret" {
   description = "The client secret of your GitHub App (`GITHUB_CLIENT_SECRET`)."
 }
 
+variable "artifact_patterns" {
+  type        = string
+  description = "The artifact patterns to download from GitHub Actions."
+}
+
 variable "secret_variables" {
   type        = map(string)
   sensitive   = true

@@ -56,6 +56,8 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "CLOUDFRONT_PRIVATE_KEY" : tls_private_key.private_key.private_key_pem,
       "CLOUDFRONT_KEY_PAIR_ID" : aws_cloudfront_public_key.public_key.id,
       "JWT_SECRET" : random_password.jwt_secret.result,
+      "S3_BUCKET_NAME" : module.s3_bucket.s3_bucket_id,
+      "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
     var.secret_variables
   ))
