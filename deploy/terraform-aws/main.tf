@@ -57,6 +57,7 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "CLOUDFRONT_KEY_PAIR_ID" : aws_cloudfront_public_key.public_key.id,
       "JWT_SECRET" : random_password.jwt_secret.result,
       "S3_BUCKET_NAME" : module.s3_bucket.s3_bucket_id,
+      "SQS_QUEUE_URL" : module.sqs.queue_url,
       "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
     var.secret_variables // User-provided secrets will OVERRIDE
@@ -83,6 +84,19 @@ data "aws_iam_policy_document" "lambda_function" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
+    ]
+  }
+
+  statement {
+    sid = "AllowLambdaToProcessSQSMessage"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:SendMessage"
+    ]
+    resources = [
+      module.sqs.queue_arn
     ]
   }
 
@@ -124,8 +138,30 @@ module "lambda_function" {
   policy_json        = data.aws_iam_policy_document.lambda_function.json
 
   create_lambda_function_url = true
+  event_source_mapping = {
+    sqs = {
+      event_source_arn                   = module.sqs.queue_arn
+      function_response_types            = ["ReportBatchItemFailures"]
+      batch_size                         = 5
+      maximum_batching_window_in_seconds = 10
+
+      scaling_config = {
+        maximum_concurrency = 3
+      }
+    }
+  }
 
   cloudwatch_logs_retention_in_days = 1
+}
+
+module "sqs" {
+  source  = "terraform-aws-modules/sqs/aws"
+  version = "~> 5.0"
+
+  name = "${var.app_name}-queue"
+
+  fifo_queue                 = false
+  visibility_timeout_seconds = 180
 }
 
 data "aws_iam_policy_document" "for_cloudfront" {

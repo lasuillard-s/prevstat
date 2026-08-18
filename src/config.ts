@@ -20,6 +20,7 @@ export const AppConfig = z.object({
 		.describe('Expiration time for the JWT token in seconds. Default is 5 minutes.')
 		.default(5 * 60), // Default to 5 minutes
 	S3_BUCKET_NAME: z.string().describe('S3 Bucket name for artifact uploads'),
+	SQS_QUEUE_URL: z.string().describe('SQS Queue URL for artifact processing'),
 	ARTIFACT_PATTERNS: z
 		.string()
 		.describe(

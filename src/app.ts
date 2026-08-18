@@ -3,6 +3,7 @@ import { ApplicationFunction, createNodeMiddleware, createProbot } from 'probot'
 import { AppConfig, loadConfig } from './config.js';
 import WorkflowRunCompletedHandler from './handlers/workflow_run.completed.js';
 import { router as apiRouter } from './routes/api/index.js';
+import { router as awsRouter } from './routes/aws/index.js';
 
 /**
  * Returns the Express app configured with the Probot middleware and custom routes.
@@ -31,6 +32,7 @@ export async function createApp(): Promise<express.Express> {
 
 	// Register routes
 	app.use('/api', apiRouter);
+	app.use('/aws', awsRouter);
 
 	// Register event listeners
 	// NOTE: Handlers are not awaited here because they are expected to handle events asynchronously,

@@ -1,31 +1,26 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import AdmZip from 'adm-zip';
-import mime from 'mime-types';
+import { SendMessageBatchCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { Context } from 'probot';
-import { buildArtifactPath } from '../assets.js';
 import { AppConfig } from '../config.js';
+import { ProcessArtifactMessage } from '../sqs.js';
 import { matchPatterns } from '../utils.js';
 import { BaseHandler } from './base.js';
 
 /**
  * Handler for workflow run completed events on the runner repository.
+ * Enqueues matching artifacts to SQS for asynchronous processing.
  */
 export default class WorkflowRunCompletedHandler extends BaseHandler<
 	Context<'workflow_run.completed'>
 > {
-	private readonly s3Client: S3Client;
+	private readonly sqsClient: SQSClient;
 
 	constructor(
 		context: Context<'workflow_run.completed'>,
 		appConfig: AppConfig,
-		s3Client?: S3Client
+		sqsClient?: SQSClient
 	) {
 		super(context, appConfig);
-		this.s3Client = s3Client ?? new S3Client({});
-	}
-
-	private get visibility(): 'private' | 'public' {
-		return this.context.payload.repository.private ? 'private' : 'public';
+		this.sqsClient = sqsClient ?? new SQSClient({});
 	}
 
 	async handle() {
@@ -36,14 +31,14 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 		);
 
 		const artifacts = await this.listArtifacts();
-		const processPromises = artifacts.map(async (artifact) => {
+		const matchedArtifacts = artifacts.filter((artifact) => {
 			const artifactFqn = `${payload.repository.full_name}:${payload.workflow_run.path}:${artifact.name}`;
-			if (this.isArtifactMatched(artifactFqn)) {
-				this.log.info(`Artifact matched: ${artifactFqn}. Processing...`);
-				await this.processArtifact(artifact);
-			}
+			return this.isArtifactMatched(artifactFqn);
 		});
-		await Promise.all(processPromises);
+
+		if (matchedArtifacts.length === 0) return;
+
+		await this.enqueueArtifacts(matchedArtifacts);
 	}
 
 	private async listArtifacts() {
@@ -66,131 +61,62 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 		return matchPatterns(artifactFqn, this.appConfig.ARTIFACT_PATTERNS, {});
 	}
 
-	// Process a single artifact: download, unzip, upload to S3, and create a check run.
-	private async processArtifact(artifact: { id: number; name: string }) {
-		const zipBuffer = await this.downloadArtifact(artifact.id);
-		if (!zipBuffer) {
-			this.log.error(`Failed to download artifact ${artifact.name}. Skipping processing.`);
-			return;
-		}
-		const success = await this.unzipAndUpload(zipBuffer, artifact.name);
-		await this.createCheckRun(artifact.name, success ? 'success' : 'failure');
-	}
-
-	private async downloadArtifact(artifactId: number): Promise<Buffer | null> {
-		const { octokit } = this.context;
-		const { owner, repo } = this.repo();
-		try {
-			const download = await octokit.rest.actions.downloadArtifact({
-				owner,
-				repo,
-				artifact_id: artifactId,
-				archive_format: 'zip'
-			});
-			return Buffer.from(download.data as ArrayBuffer);
-		} catch (error) {
-			this.log.error(error, `Failed to download artifact ${artifactId}`);
-			return null;
-		}
-	}
-
-	private async unzipAndUpload(zipBuffer: Buffer, artifactName: string): Promise<boolean> {
+	private async enqueueArtifacts(artifacts: Array<{ id: number; name: string }>) {
 		const { payload } = this.context;
-		const { owner, repo } = this.repo();
 
-		let zip: AdmZip;
-		try {
-			zip = new AdmZip(zipBuffer);
-		} catch (error) {
-			this.log.error(error, `Failed to read zip archive for artifact ${artifactName}`);
-			return false;
-		}
+		const chunkSize = 10;
+		for (let i = 0; i < artifacts.length; i += chunkSize) {
+			const chunk = artifacts.slice(i, i + chunkSize);
+			const entries = chunk.map((artifact) => {
+				const message: ProcessArtifactMessage = {
+					installationId: payload.installation?.id,
+					repository: {
+						name: payload.repository.name,
+						full_name: payload.repository.full_name,
+						private: payload.repository.private,
+						owner: {
+							login: payload.repository.owner.login
+						}
+					},
+					workflowRun: {
+						id: payload.workflow_run.id,
+						name: payload.workflow_run.name,
+						path: payload.workflow_run.path,
+						head_sha: payload.workflow_run.head_sha
+					},
+					artifact: {
+						id: artifact.id,
+						name: artifact.name
+					}
+				};
 
-		const zipEntries = zip.getEntries();
-		let hasError = false;
-
-		const uploadPromises = zipEntries.map(async (entry) => {
-			if (entry.isDirectory) return;
-
-			// Use the buildArtifactPath to build the key, removing the leading slash for S3 key
-			const path = buildArtifactPath(
-				this.visibility,
-				owner,
-				repo,
-				payload.workflow_run.id,
-				artifactName,
-				entry.entryName
-			);
-			const s3Key = path.startsWith('/') ? path.substring(1) : path;
-
-			const contentType = mime.lookup(entry.entryName) || 'application/octet-stream';
+				return {
+					Id: artifact.id.toString(),
+					MessageBody: JSON.stringify(message)
+				};
+			});
 
 			try {
-				await this.s3Client.send(
-					new PutObjectCommand({
-						Bucket: this.appConfig.S3_BUCKET_NAME,
-						Key: s3Key,
-						Body: entry.getData(),
-						ContentType: contentType
+				const result = await this.sqsClient.send(
+					new SendMessageBatchCommand({
+						QueueUrl: this.appConfig.SQS_QUEUE_URL,
+						Entries: entries
 					})
 				);
-			} catch (error) {
-				hasError = true;
-				this.log.error(error, `Failed to upload ${entry.entryName} to S3`);
-			}
-		});
 
-		await Promise.all(uploadPromises);
-		if (hasError) {
-			this.log.error(`Some files failed to upload for artifact ${artifactName}.`);
-			return false;
-		}
-
-		this.log.info(`Uploaded all files from artifact ${artifactName} to S3.`);
-		return true;
-	}
-
-	private async createCheckRun(
-		artifactName: string,
-		conclusion: 'success' | 'failure' = 'success'
-	) {
-		const { payload, octokit } = this.context;
-		const { owner, repo } = this.repo();
-
-		// Determine the details URL (could be CloudFront domain root + path)
-		// Assuming index.html is the entry point
-		const basePath = buildArtifactPath(
-			this.visibility,
-			owner,
-			repo,
-			payload.workflow_run.id,
-			artifactName
-		);
-		const detailsUrl = `https://${this.appConfig.CLOUDFRONT_DOMAIN}${basePath}/index.html`;
-		const summary =
-			conclusion === 'success'
-				? `Successfully uploaded artifact ${artifactName} to S3.`
-				: `Failed to upload artifact ${artifactName} to S3.`;
-
-		try {
-			await octokit.rest.checks.create({
-				owner,
-				repo,
-				name: artifactName,
-				head_sha: payload.workflow_run.head_sha,
-				status: 'completed',
-				conclusion,
-				details_url: detailsUrl,
-				output: {
-					title: `Artifact: ${artifactName}`,
-					summary
+				if (result.Failed && result.Failed.length > 0) {
+					for (const failed of result.Failed) {
+						this.log.error(
+							`Failed to enqueue artifact entry ${failed.Id}: ${failed.Message} (${failed.Code})`
+						);
+					}
 				}
-			});
-			this.log.info(
-				`Created check run for artifact ${artifactName} with conclusion '${conclusion}'.`
-			);
-		} catch (error) {
-			this.log.error(error, `Failed to create check run for artifact ${artifactName}`);
+				if (result.Successful && result.Successful.length > 0) {
+					this.log.info(`Enqueued ${result.Successful.length} artifact(s) to SQS.`);
+				}
+			} catch (error) {
+				this.log.error(error, 'Failed to send artifact batch to SQS');
+			}
 		}
 	}
 }

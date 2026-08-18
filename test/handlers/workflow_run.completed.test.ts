@@ -1,5 +1,4 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import AdmZip from 'adm-zip';
+import { SQSClient } from '@aws-sdk/client-sqs';
 import { Context } from 'probot';
 import { beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../src/config.js';
@@ -8,16 +7,12 @@ import { test as it } from '../helpers.js';
 
 describe('WorkflowRunCompletedHandler', () => {
 	let appConfig: AppConfig;
-	let mockS3Client: S3Client;
+	let mockSqsClient: SQSClient;
 	let mockSend: ReturnType<typeof vi.fn>;
 	let mockOctokit: {
 		rest: {
 			actions: {
 				listWorkflowRunArtifacts: ReturnType<typeof vi.fn>;
-				downloadArtifact: ReturnType<typeof vi.fn>;
-			};
-			checks: {
-				create: ReturnType<typeof vi.fn>;
 			};
 		};
 	};
@@ -26,14 +21,6 @@ describe('WorkflowRunCompletedHandler', () => {
 		info: ReturnType<typeof vi.fn>;
 		warn: ReturnType<typeof vi.fn>;
 		error: ReturnType<typeof vi.fn>;
-	};
-
-	const createZipBuffer = (files: Record<string, string>): Buffer => {
-		const zip = new AdmZip();
-		for (const [filename, content] of Object.entries(files)) {
-			zip.addFile(filename, Buffer.from(content));
-		}
-		return zip.toBuffer();
 	};
 
 	beforeEach(() => {
@@ -47,22 +34,19 @@ describe('WorkflowRunCompletedHandler', () => {
 			JWT_SECRET: 'jwt-secret',
 			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'test-bucket',
+			SQS_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
 			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
 		};
 
 		mockSend = vi.fn().mockResolvedValue({});
-		mockS3Client = {
+		mockSqsClient = {
 			send: mockSend
-		} as unknown as S3Client;
+		} as unknown as SQSClient;
 
 		mockOctokit = {
 			rest: {
 				actions: {
-					listWorkflowRunArtifacts: vi.fn(),
-					downloadArtifact: vi.fn()
-				},
-				checks: {
-					create: vi.fn().mockResolvedValue({})
+					listWorkflowRunArtifacts: vi.fn()
 				}
 			}
 		};
@@ -77,9 +61,12 @@ describe('WorkflowRunCompletedHandler', () => {
 
 	const createHandler = (
 		payloadOverrides: Record<string, unknown> = {},
-		s3Client: S3Client = mockS3Client
+		sqsClient: SQSClient = mockSqsClient
 	) => {
 		const payload = {
+			installation: {
+				id: 9999
+			},
 			repository: {
 				name: 'my-repo',
 				full_name: 'my-org/my-repo',
@@ -104,7 +91,7 @@ describe('WorkflowRunCompletedHandler', () => {
 			repo: () => ({ owner: 'my-org', repo: 'my-repo' })
 		} as unknown as Context<'workflow_run.completed'>;
 
-		return new WorkflowRunCompletedHandler(context, appConfig, s3Client);
+		return new WorkflowRunCompletedHandler(context, appConfig, sqsClient);
 	};
 
 	it('skips artifacts that do not match ARTIFACT_PATTERNS', async () => {
@@ -117,74 +104,135 @@ describe('WorkflowRunCompletedHandler', () => {
 		const handler = createHandler();
 		await handler.handle();
 
-		expect(mockOctokit.rest.actions.downloadArtifact).not.toHaveBeenCalled();
 		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockOctokit.rest.checks.create).not.toHaveBeenCalled();
 	});
 
-	it('downloads, unzips, uploads matched artifact, and creates check run with success conclusion', async () => {
-		const zipBuffer = createZipBuffer({
-			'index.html': '<html>Hello World</html>',
-			'styles/main.css': 'body { color: blue; }'
-		});
-
+	it('enqueues matched artifacts to SQS in a batch', async () => {
 		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
 			data: {
-				artifacts: [{ id: 101, name: 'build-output-web' }]
+				artifacts: [
+					{ id: 101, name: 'build-output-web' },
+					{ id: 102, name: 'other-artifact' },
+					{ id: 103, name: 'build-output-docs' }
+				]
 			}
-		});
-
-		mockOctokit.rest.actions.downloadArtifact.mockResolvedValue({
-			data: zipBuffer.buffer.slice(
-				zipBuffer.byteOffset,
-				zipBuffer.byteOffset + zipBuffer.byteLength
-			)
 		});
 
 		const handler = createHandler();
 		await handler.handle();
 
-		expect(mockOctokit.rest.actions.downloadArtifact).toHaveBeenCalledWith({
-			owner: 'my-org',
-			repo: 'my-repo',
-			artifact_id: 101,
-			archive_format: 'zip'
+		expect(mockSend).toHaveBeenCalledTimes(1);
+		expect(mockSend).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: {
+					QueueUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+					Entries: [
+						{
+							Id: '101',
+							MessageBody: JSON.stringify({
+								installationId: 9999,
+								repository: {
+									name: 'my-repo',
+									full_name: 'my-org/my-repo',
+									private: true,
+									owner: {
+										login: 'my-org'
+									}
+								},
+								workflowRun: {
+									id: 12345,
+									name: 'CI',
+									path: '.github/workflows/ci.yaml',
+									head_sha: 'abcdef123456'
+								},
+								artifact: {
+									id: 101,
+									name: 'build-output-web'
+								}
+							})
+						},
+						{
+							Id: '103',
+							MessageBody: JSON.stringify({
+								installationId: 9999,
+								repository: {
+									name: 'my-repo',
+									full_name: 'my-org/my-repo',
+									private: true,
+									owner: {
+										login: 'my-org'
+									}
+								},
+								workflowRun: {
+									id: 12345,
+									name: 'CI',
+									path: '.github/workflows/ci.yaml',
+									head_sha: 'abcdef123456'
+								},
+								artifact: {
+									id: 103,
+									name: 'build-output-docs'
+								}
+							})
+						}
+					]
+				}
+			})
+		);
+	});
+
+	it('chunks batches when more than 10 artifacts are matched', async () => {
+		const artifacts = Array.from({ length: 15 }, (_, i) => ({
+			id: 100 + i,
+			name: `build-output-${i}`
+		}));
+
+		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
+			data: { artifacts }
 		});
+
+		const handler = createHandler();
+		await handler.handle();
 
 		expect(mockSend).toHaveBeenCalledTimes(2);
-		expect(mockSend).toHaveBeenCalledWith(
+		expect(mockSend).toHaveBeenNthCalledWith(
+			1,
 			expect.objectContaining({
 				input: expect.objectContaining({
-					Bucket: 'test-bucket',
-					Key: 'private/my-org/my-repo/12345/build-output-web/index.html',
-					ContentType: 'text/html'
+					Entries: expect.arrayContaining([expect.objectContaining({ Id: '100' })])
 				})
 			})
 		);
-		expect(mockSend).toHaveBeenCalledWith(
+		expect(mockSend).toHaveBeenNthCalledWith(
+			2,
 			expect.objectContaining({
 				input: expect.objectContaining({
-					Bucket: 'test-bucket',
-					Key: 'private/my-org/my-repo/12345/build-output-web/styles/main.css',
-					ContentType: 'text/css'
+					Entries: expect.arrayContaining([expect.objectContaining({ Id: '110' })])
 				})
 			})
 		);
+	});
 
-		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith({
-			owner: 'my-org',
-			repo: 'my-repo',
-			name: 'build-output-web',
-			head_sha: 'abcdef123456',
-			status: 'completed',
-			conclusion: 'success',
-			details_url:
-				'https://assets.example.com/private/my-org/my-repo/12345/build-output-web/index.html',
-			output: {
-				title: 'Artifact: build-output-web',
-				summary: 'Successfully uploaded artifact build-output-web to S3.'
+	it('handles SQS batch with Failed entries gracefully', async () => {
+		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
+			data: {
+				artifacts: [{ id: 101, name: 'build-output-web' }]
 			}
 		});
+		mockSend.mockResolvedValue({
+			Successful: [],
+			Failed: [
+				{
+					Id: '101',
+					Code: 'InternalError',
+					Message: 'Service unavailable',
+					SenderFault: false
+				}
+			]
+		});
+
+		const handler = createHandler();
+		await expect(handler.handle()).resolves.not.toThrow();
 	});
 
 	it('handles listWorkflowRunArtifacts errors gracefully', async () => {
@@ -193,100 +241,16 @@ describe('WorkflowRunCompletedHandler', () => {
 		const handler = createHandler();
 		await expect(handler.handle()).resolves.not.toThrow();
 
-		expect(mockOctokit.rest.actions.downloadArtifact).not.toHaveBeenCalled();
 		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockOctokit.rest.checks.create).not.toHaveBeenCalled();
 	});
 
-	it('handles downloadArtifact failure gracefully without creating check run', async () => {
+	it('handles SQS send errors gracefully', async () => {
 		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
 			data: {
 				artifacts: [{ id: 101, name: 'build-output-web' }]
 			}
 		});
-		mockOctokit.rest.actions.downloadArtifact.mockRejectedValue(new Error('Not found'));
-
-		const handler = createHandler();
-		await expect(handler.handle()).resolves.not.toThrow();
-
-		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockOctokit.rest.checks.create).not.toHaveBeenCalled();
-	});
-
-	it('creates check run with failure conclusion when S3 upload fails', async () => {
-		const zipBuffer = createZipBuffer({
-			'index.html': '<html>Hello World</html>'
-		});
-
-		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
-			data: {
-				artifacts: [{ id: 101, name: 'build-output-web' }]
-			}
-		});
-		mockOctokit.rest.actions.downloadArtifact.mockResolvedValue({
-			data: zipBuffer.buffer.slice(
-				zipBuffer.byteOffset,
-				zipBuffer.byteOffset + zipBuffer.byteLength
-			)
-		});
-		mockSend.mockRejectedValue(new Error('S3 Access Denied'));
-
-		const handler = createHandler();
-		await handler.handle();
-
-		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith({
-			owner: 'my-org',
-			repo: 'my-repo',
-			name: 'build-output-web',
-			head_sha: 'abcdef123456',
-			status: 'completed',
-			conclusion: 'failure',
-			details_url:
-				'https://assets.example.com/private/my-org/my-repo/12345/build-output-web/index.html',
-			output: {
-				title: 'Artifact: build-output-web',
-				summary: 'Failed to upload artifact build-output-web to S3.'
-			}
-		});
-	});
-
-	it('handles corrupt zip archives gracefully and reports failure check run', async () => {
-		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
-			data: {
-				artifacts: [{ id: 101, name: 'build-output-web' }]
-			}
-		});
-		mockOctokit.rest.actions.downloadArtifact.mockResolvedValue({
-			data: Buffer.from('invalid-non-zip-data')
-		});
-
-		const handler = createHandler();
-		await handler.handle();
-
-		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith(
-			expect.objectContaining({
-				conclusion: 'failure'
-			})
-		);
-	});
-
-	it('handles check run creation errors gracefully', async () => {
-		const zipBuffer = createZipBuffer({
-			'index.html': '<html>Hello World</html>'
-		});
-
-		mockOctokit.rest.actions.listWorkflowRunArtifacts.mockResolvedValue({
-			data: {
-				artifacts: [{ id: 101, name: 'build-output-web' }]
-			}
-		});
-		mockOctokit.rest.actions.downloadArtifact.mockResolvedValue({
-			data: zipBuffer.buffer.slice(
-				zipBuffer.byteOffset,
-				zipBuffer.byteOffset + zipBuffer.byteLength
-			)
-		});
-		mockOctokit.rest.checks.create.mockRejectedValue(new Error('GitHub API down'));
+		mockSend.mockRejectedValue(new Error('SQS error'));
 
 		const handler = createHandler();
 		await expect(handler.handle()).resolves.not.toThrow();
