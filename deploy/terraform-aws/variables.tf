@@ -1,12 +1,29 @@
+variable "github_api_base_url" {
+  type        = string
+  description = "The base URL for the GitHub API. Used to validate app installation."
+  default     = "https://api.github.com"
+}
+
 variable "app_name" {
   type        = string
   description = "Application name"
   default     = "presta"
 }
 
+variable "app_slug" {
+  type        = string
+  description = "The slug of your GitHub App (e.g. `pre-sta`)."
+  # NOTE: The slug cannot have default as it would conflict with GitHub Apps created by other users.
+}
+
 variable "app_id" {
   type        = string
   description = "The ID of your GitHub App (`APP_ID`)."
+}
+
+variable "app_installation_id" {
+  type        = string
+  description = "GitHub app installation ID used to fetch the app installation information."
 }
 
 variable "private_key" {
