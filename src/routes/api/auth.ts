@@ -185,7 +185,7 @@ export function parseRepoFromUrl(url: string): { owner: string; repo: string } {
  * @param config The application configuration containing CloudFront credentials.
  * @returns Signed CloudFront cookies
  */
-function bakeCloudFrontCookies(
+export function bakeCloudFrontCookies(
 	path: string,
 	expiresAt: Date,
 	config: Readonly<AppConfig>
