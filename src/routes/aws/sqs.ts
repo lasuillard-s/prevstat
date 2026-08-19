@@ -94,7 +94,7 @@ async function processRecord(
 		await octokit.rest.checks.create({
 			owner,
 			repo,
-			name: artifact.name,
+			name: `Presta / ${artifact.name}`,
 			head_sha: workflowRun.head_sha,
 			status: 'completed',
 			conclusion: 'failure',
@@ -127,13 +127,13 @@ async function processRecord(
 			state: 'success',
 			target_url: targetUrl,
 			description: `Successfully uploaded artifact ${artifact.name} to S3.`,
-			context: artifact.name
+			context: `Presta / ${artifact.name}`
 		});
 	} else {
 		await octokit.rest.checks.create({
 			owner,
 			repo,
-			name: artifact.name,
+			name: `Presta / ${artifact.name}`,
 			head_sha: workflowRun.head_sha,
 			status: 'completed',
 			conclusion: 'failure',
