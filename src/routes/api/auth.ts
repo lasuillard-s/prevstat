@@ -4,8 +4,9 @@ import { Octokit } from '@octokit/core';
 import express, { CookieOptions, Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { Probot } from 'probot';
-import { buildArtifactPath } from '../../assets.js';
+import { buildRepositoryBasePath } from '../../assets.js';
 import type { AppConfig } from '../../config.js';
+import { errorToString } from '../../utils.js';
 
 export const router = express.Router();
 
@@ -74,13 +75,19 @@ router.get(
 		const { token } = await auth();
 		const userOctokit = new Octokit({ auth: token });
 
-		// Parse the repository owner and name from the document URI, and validate
-		// that the user has read access to it
-		const { owner, repo } = parseRepoFromUrl(documentUri);
-		if (!owner || !repo) {
-			probot.log.error(`Invalid redirect URI: ${documentUri} => ${owner}/${repo}`);
+		// Parse the repository owner and name from the document URI
+		let owner: string;
+		let repo: string;
+		try {
+			const repoInfo = parseRepoFromUrl(documentUri);
+			owner = repoInfo.owner;
+			repo = repoInfo.repo;
+		} catch (error) {
+			probot.log.error(`Invalid redirect URI: ${documentUri} => ${errorToString(error)}`);
 			return res.status(400).send('Invalid redirect URI');
 		}
+
+		// Fetch repository information to check permissions
 		const { data: repoInfo } = await userOctokit.request('GET /repos/{owner}/{repo}', {
 			owner,
 			repo
@@ -94,7 +101,7 @@ router.get(
 		// Bake CloudFront signed cookies for the user to access the private document
 		const validSeconds = config.CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS;
 		const expiresAt = new Date(Date.now() + validSeconds * 1_000);
-		const basePath = buildArtifactPath('private', owner, repo);
+		const basePath = buildRepositoryBasePath('private', owner, repo);
 		const signedCookies = bakeCloudFrontCookies(`${basePath}/*`, expiresAt, config);
 		const cookieOptions: CookieOptions = {
 			path: `${basePath}/`,
@@ -137,17 +144,36 @@ function decryptState(encryptedState: string, config: Readonly<AppConfig>): Stat
 }
 
 /**
- * Parses a repository full name in `owner/repo` format into an object with owner and repo.
- * @param url Repository full name
- * @returns The parsed Repo
+ * Parses the repository owner and name from an artifact document URL.
+ * URL path must strictly match `/<visibility>/<owner>/<repo>/<workflowRunId>/<artifactName>/<filePath>`.
+ * Throws an error if the URL is invalid or if any path component is missing.
+ * @param url The artifact document URL
+ * @returns The parsed repository owner and name
  */
-function parseRepoFromUrl(url: string): { owner: string; repo: string } {
-	// @ts-expect-error Ignore unused variables for now
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const [empty, visibility, owner, repo, workflowRunId, artifactName] = new URL(url).pathname.split(
-		'/'
-	);
-	return { owner, repo };
+export function parseRepoFromUrl(url: string): { owner: string; repo: string } {
+	const parsedUrl = new URL(url);
+	const parts = parsedUrl.pathname.split('/');
+
+	// Expect ['', visibility, owner, repo, workflowRunId, artifactName, ...filePathParts]
+	if (parts.length < 7) {
+		throw new Error(`Incomplete artifact path in URL: ${url}`);
+	}
+
+	// Extract the required components from the URL path
+	const [, visibility, owner, repo, workflowRunId, artifactName, ...filePathParts] = parts;
+	const filePath = filePathParts.join('/');
+
+	// Validate that all required components are present
+	if (!visibility || !owner || !repo || !workflowRunId || !artifactName || !filePath) {
+		throw new Error(
+			`Missing required path components in URL (${url}): ${JSON.stringify({ visibility, owner, repo, workflowRunId, artifactName, filePath })}`
+		);
+	}
+
+	return {
+		owner: decodeURIComponent(owner),
+		repo: decodeURIComponent(repo)
+	};
 }
 
 /**

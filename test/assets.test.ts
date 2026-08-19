@@ -1,25 +1,26 @@
-import { describe, expect } from 'vitest';
-import { buildArtifactPath } from '../src/assets.js';
-import { test as it } from './helpers.js';
+import { describe, expect, it } from 'vitest';
+import { buildArtifactPath, buildRepositoryBasePath } from '../src/assets.js';
 
-describe('buildArtifactPath', () => {
-	it('builds a path with base parameters', () => {
-		expect(buildArtifactPath('private', 'owner', 'repo')).toBe('/private/owner/repo');
+describe('buildRepositoryBasePath', () => {
+	it('builds a repository-scoped base path', () => {
+		expect(buildRepositoryBasePath('private', 'owner', 'repo')).toBe('/private/owner/repo');
 	});
 
-	it('builds a path with workflowRunId and artifactName', () => {
-		expect(buildArtifactPath('private', 'owner', 'repo', 123, 'artifact-name')).toBe(
-			'/private/owner/repo/123/artifact-name'
+	it('safely encodes repository owner and repo components', () => {
+		expect(buildRepositoryBasePath('private', 'owner/name', 'repo:name')).toBe(
+			'/private/owner%2Fname/repo%3Aname'
 		);
 	});
+});
 
-	it('builds a path with a specific file path', () => {
+describe('buildArtifactPath', () => {
+	it('builds a full artifact file path with all required arguments', () => {
 		expect(
 			buildArtifactPath('private', 'owner', 'repo', 123, 'artifact-name', 'dir/index.html')
 		).toBe('/private/owner/repo/123/artifact-name/dir/index.html');
 	});
 
-	it('safely encodes components to prevent path traversal', () => {
+	it('safely encodes components while preserving file path segments', () => {
 		expect(
 			buildArtifactPath('private', 'owner/name', 'repo', 123, 'artifact/name', '../etc/passwd')
 		).toBe('/private/owner%2Fname/repo/123/artifact%2Fname/../etc/passwd');
