@@ -1,6 +1,6 @@
 import type { Probot } from 'probot';
 import * as z from 'zod';
-import { errorToString } from './utils.js';
+import { errorToString } from './utils/string.js';
 
 export const AppConfig = z.object({
 	GITHUB_CLIENT_ID: z.string().describe('GitHub OAuth App Client ID'),

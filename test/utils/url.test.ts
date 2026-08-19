@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildArtifactPath, buildRepositoryBasePath } from '../src/assets.js';
+import { buildArtifactPath, buildRepositoryBasePath } from '../../src/utils/url.js';
 
 describe('buildRepositoryBasePath', () => {
 	it('builds a repository-scoped base path', () => {

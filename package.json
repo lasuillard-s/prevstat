@@ -26,6 +26,8 @@
 		"lint:fix": "eslint --fix .",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest --run",
+		"test:unit": "vitest --run --exclude '**/*.integration.test.ts'",
+		"test:integration": "vitest --run '**/*.integration.test.ts'",
 		"test:watch": "vitest --silent --watch"
 	},
 	"type": "module",
@@ -59,6 +61,7 @@
 	"devDependencies": {
 		"@eslint/eslintrc": "3.3.6",
 		"@eslint/js": "10.0.1",
+		"@testcontainers/localstack": "12.1.0",
 		"@types/adm-zip": "0.5.8",
 		"@types/aws-cloudfront-function": "1.0.8",
 		"@types/express": "5.0.6",
@@ -77,6 +80,7 @@
 		"nodemon": "3.1.14",
 		"prettier": "3.9.5",
 		"smee-client": "5.0.0",
+		"testcontainers": "12.1.0",
 		"typescript": "6.0.3",
 		"typescript-eslint": "8.64.0",
 		"vitest": "4.1.10"

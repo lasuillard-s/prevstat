@@ -2,7 +2,6 @@
 .vscode
 coverage
 html
-lib
 node_modules
 *.pem
 junit.xml

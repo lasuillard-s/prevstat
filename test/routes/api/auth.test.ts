@@ -9,11 +9,7 @@ import nock from 'nock';
 import { Probot } from 'probot';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
-import {
-	bakeCloudFrontCookies,
-	parseRepoFromUrl,
-	router as authRouter
-} from '../../../src/routes/api/auth.js';
+import { router as authRouter, parseRepoFromUrl } from '../../../src/routes/api/auth.js';
 
 vi.mock('@octokit/auth-oauth-user', () => ({
 	createOAuthUserAuth: vi.fn()
@@ -210,17 +206,6 @@ describe('GET /api/auth router', () => {
 				privateKey: 'key',
 				policy: expect.any(String)
 			});
-		});
-	});
-
-	describe('bakeCloudFrontCookies', () => {
-		it('handles paths that do not start with a slash', () => {
-			bakeCloudFrontCookies('private/path/*', new Date(), appConfig);
-			expect(getSignedCookies).toHaveBeenCalledWith(
-				expect.objectContaining({
-					policy: expect.stringContaining('https://assets.example.com/private/path/*')
-				})
-			);
 		});
 	});
 

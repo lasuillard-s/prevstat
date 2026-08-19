@@ -2,7 +2,7 @@ import type { Logger } from 'pino';
 import type { ProbotOctokit } from 'probot';
 import { Context } from 'probot';
 import { AppConfig } from '../config.js';
-import { Repo } from '../octokit.js';
+import { Repo } from '../lib/github.js';
 
 export const CHECK_RUN_NAME = 'Dev Container Check';
 

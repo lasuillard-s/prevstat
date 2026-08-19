@@ -38,7 +38,7 @@ describe('WorkflowRunCompletedHandler', () => {
 			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
 		};
 
-		mockSend = vi.fn().mockResolvedValue({});
+		mockSend = vi.fn().mockResolvedValue({ Successful: [{}] });
 		mockSqsClient = {
 			send: mockSend
 		} as unknown as SQSClient;
@@ -131,48 +131,20 @@ describe('WorkflowRunCompletedHandler', () => {
 							Id: '101',
 							MessageBody: JSON.stringify({
 								installationId: 9999,
-								repository: {
-									name: 'my-repo',
-									full_name: 'my-org/my-repo',
-									private: true,
-									owner: {
-										login: 'my-org'
-									}
-								},
-								workflowRun: {
-									id: 12345,
-									name: 'CI',
-									path: '.github/workflows/ci.yaml',
-									head_sha: 'abcdef123456'
-								},
-								artifact: {
-									id: 101,
-									name: 'build-output-web'
-								}
+								owner: 'my-org',
+								repo: 'my-repo',
+								runId: 12345,
+								artifactId: 101
 							})
 						},
 						{
 							Id: '103',
 							MessageBody: JSON.stringify({
 								installationId: 9999,
-								repository: {
-									name: 'my-repo',
-									full_name: 'my-org/my-repo',
-									private: true,
-									owner: {
-										login: 'my-org'
-									}
-								},
-								workflowRun: {
-									id: 12345,
-									name: 'CI',
-									path: '.github/workflows/ci.yaml',
-									head_sha: 'abcdef123456'
-								},
-								artifact: {
-									id: 103,
-									name: 'build-output-docs'
-								}
+								owner: 'my-org',
+								repo: 'my-repo',
+								runId: 12345,
+								artifactId: 103
 							})
 						}
 					]

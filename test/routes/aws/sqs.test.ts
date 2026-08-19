@@ -8,7 +8,7 @@ import { Probot } from 'probot';
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
 import { router as awsRouter } from '../../../src/routes/aws/index.js';
-import { ProcessArtifactMessage } from '../../../src/sqs.js';
+import { ProcessArtifactMessage } from '../../../src/lib/aws/sqs.js';
 import { test as it } from '../../helpers.js';
 
 describe('POST /aws/sqs router', () => {
@@ -22,11 +22,13 @@ describe('POST /aws/sqs router', () => {
 		rest: {
 			actions: {
 				downloadArtifact: ReturnType<typeof vi.fn>;
+				getArtifact: ReturnType<typeof vi.fn>;
 			};
 			checks: {
 				create: ReturnType<typeof vi.fn>;
 			};
 			repos: {
+				get: ReturnType<typeof vi.fn>;
 				createCommitStatus: ReturnType<typeof vi.fn>;
 			};
 		};
@@ -66,12 +68,27 @@ describe('POST /aws/sqs router', () => {
 		mockOctokit = {
 			rest: {
 				actions: {
-					downloadArtifact: vi.fn()
+					downloadArtifact: vi.fn(),
+					getArtifact: vi.fn().mockResolvedValue({
+						data: {
+							id: 101,
+							name: 'build-output-web',
+							workflow_run: {
+								id: 12345,
+								head_sha: 'abcdef123456'
+							}
+						}
+					})
 				},
 				checks: {
 					create: vi.fn().mockResolvedValue({})
 				},
 				repos: {
+					get: vi.fn().mockResolvedValue({
+						data: {
+							private: true
+						}
+					}),
 					createCommitStatus: vi.fn().mockResolvedValue({})
 				}
 			}
@@ -114,24 +131,10 @@ describe('POST /aws/sqs router', () => {
 		overrides: Partial<ProcessArtifactMessage> = {}
 	): ProcessArtifactMessage => ({
 		installationId: 1234,
-		repository: {
-			name: 'my-repo',
-			full_name: 'my-org/my-repo',
-			private: true,
-			owner: {
-				login: 'my-org'
-			}
-		},
-		workflowRun: {
-			id: 12345,
-			name: 'CI',
-			path: '.github/workflows/ci.yaml',
-			head_sha: 'abcdef123456'
-		},
-		artifact: {
-			id: 101,
-			name: 'build-output-web'
-		},
+		owner: 'my-org',
+		repo: 'my-repo',
+		runId: 12345,
+		artifactId: 101,
 		...overrides
 	});
 
@@ -207,6 +210,36 @@ describe('POST /aws/sqs router', () => {
 		expect(mockOctokit.rest.checks.create).not.toHaveBeenCalled();
 	});
 
+	it('works when installationId is not provided', async () => {
+		const zipBuffer = createZipBuffer({
+			'index.html': '<html></html>'
+		});
+		mockOctokit.rest.actions.downloadArtifact.mockResolvedValue({
+			data: zipBuffer.buffer.slice(
+				zipBuffer.byteOffset,
+				zipBuffer.byteOffset + zipBuffer.byteLength
+			)
+		});
+
+		const message = createMessage();
+		delete message.installationId; // remove installationId
+		const response = await fetch(`${serverUrl}/aws/sqs`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				Records: [
+					{
+						messageId: 'msg-2',
+						body: JSON.stringify(message)
+					}
+				]
+			})
+		});
+
+		expect(response.status).toBe(200);
+		expect(mockProbot.auth).toHaveBeenCalledWith(); // called without args
+	});
+
 	it('creates check run with failure conclusion when artifact download fails', async () => {
 		mockOctokit.rest.actions.downloadArtifact.mockRejectedValue(new Error('Download failed'));
 
@@ -226,7 +259,7 @@ describe('POST /aws/sqs router', () => {
 
 		const json = await response.json();
 		expect(response.status).toBe(200);
-		expect(json).toEqual({ batchItemFailures: [] });
+		expect(json).toEqual({ batchItemFailures: [{ itemIdentifier: 'msg-1' }] });
 
 		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -267,7 +300,7 @@ describe('POST /aws/sqs router', () => {
 
 		const json = await response.json();
 		expect(response.status).toBe(200);
-		expect(json).toEqual({ batchItemFailures: [] });
+		expect(json).toEqual({ batchItemFailures: [{ itemIdentifier: 'msg-1' }] });
 
 		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -297,7 +330,7 @@ describe('POST /aws/sqs router', () => {
 
 		const json = await response.json();
 		expect(response.status).toBe(200);
-		expect(json).toEqual({ batchItemFailures: [] });
+		expect(json).toEqual({ batchItemFailures: [{ itemIdentifier: 'msg-1' }] });
 
 		expect(mockOctokit.rest.checks.create).toHaveBeenCalledWith(
 			expect.objectContaining({

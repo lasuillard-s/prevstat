@@ -1,8 +1,8 @@
-import { SendMessageBatchCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { SQSClient } from '@aws-sdk/client-sqs';
 import { Context } from 'probot';
 import { AppConfig } from '../config.js';
-import { ProcessArtifactMessage } from '../sqs.js';
-import { matchPatterns } from '../utils.js';
+import { submitArtifactProcessingTasks } from '../lib/aws/sqs.js';
+import { matchPatterns } from '../utils/string.js';
 import { BaseHandler } from './base.js';
 
 /**
@@ -38,7 +38,22 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 
 		if (matchedArtifacts.length === 0) return;
 
-		await this.enqueueArtifacts(matchedArtifacts);
+		try {
+			await submitArtifactProcessingTasks(
+				this.sqsClient,
+				this.appConfig.SQS_QUEUE_URL,
+				{
+					installationId: payload.installation?.id,
+					owner: payload.repository.owner.login,
+					repo: payload.repository.name,
+					runId: payload.workflow_run.id
+				},
+				matchedArtifacts.map((artifact) => artifact.id)
+			);
+			this.log.info(`Enqueued ${matchedArtifacts.length} artifact(s) to SQS.`);
+		} catch (error) {
+			this.log.error(error, 'Failed to send artifact batch to SQS');
+		}
 	}
 
 	private async listArtifacts() {
@@ -59,64 +74,5 @@ export default class WorkflowRunCompletedHandler extends BaseHandler<
 
 	private isArtifactMatched(artifactFqn: string): boolean {
 		return matchPatterns(artifactFqn, this.appConfig.ARTIFACT_PATTERNS, {});
-	}
-
-	private async enqueueArtifacts(artifacts: Array<{ id: number; name: string }>) {
-		const { payload } = this.context;
-
-		const chunkSize = 10;
-		for (let i = 0; i < artifacts.length; i += chunkSize) {
-			const chunk = artifacts.slice(i, i + chunkSize);
-			const entries = chunk.map((artifact) => {
-				const message: ProcessArtifactMessage = {
-					installationId: payload.installation?.id,
-					repository: {
-						name: payload.repository.name,
-						full_name: payload.repository.full_name,
-						private: payload.repository.private,
-						owner: {
-							login: payload.repository.owner.login
-						}
-					},
-					workflowRun: {
-						id: payload.workflow_run.id,
-						name: payload.workflow_run.name,
-						path: payload.workflow_run.path,
-						head_sha: payload.workflow_run.head_sha
-					},
-					artifact: {
-						id: artifact.id,
-						name: artifact.name
-					}
-				};
-
-				return {
-					Id: artifact.id.toString(),
-					MessageBody: JSON.stringify(message)
-				};
-			});
-
-			try {
-				const result = await this.sqsClient.send(
-					new SendMessageBatchCommand({
-						QueueUrl: this.appConfig.SQS_QUEUE_URL,
-						Entries: entries
-					})
-				);
-
-				if (result.Failed && result.Failed.length > 0) {
-					for (const failed of result.Failed) {
-						this.log.error(
-							`Failed to enqueue artifact entry ${failed.Id}: ${failed.Message} (${failed.Code})`
-						);
-					}
-				}
-				if (result.Successful && result.Successful.length > 0) {
-					this.log.info(`Enqueued ${result.Successful.length} artifact(s) to SQS.`);
-				}
-			} catch (error) {
-				this.log.error(error, 'Failed to send artifact batch to SQS');
-			}
-		}
 	}
 }
