@@ -40,6 +40,10 @@ resource "random_password" "jwt_secret" {
   length = 32
 }
 
+resource "random_password" "x_origin_verify" {
+  length = 32
+}
+
 resource "aws_ssm_parameter" "lambda_app_config" {
   name = local.lambda_app_config_name
   type = "SecureString"
@@ -58,6 +62,7 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "JWT_SECRET" : random_password.jwt_secret.result,
       "S3_BUCKET_NAME" : module.s3_bucket.s3_bucket_id,
       "SQS_QUEUE_URL" : module.sqs.queue_url,
+      "ORIGIN_VERIFY_SECRET" : random_password.x_origin_verify.result,
       "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
     var.secret_variables // User-provided secrets will OVERRIDE
@@ -126,7 +131,9 @@ module "lambda_function" {
   local_existing_package  = data.archive_file.dist.output_path
   ignore_source_code_hash = false
 
-  timeout = 30
+  attach_policy_json = true
+  policy_json        = data.aws_iam_policy_document.lambda_function.json
+
   environment_variables = merge(
     {
       "LAMBDA_SSM_PARAMETER_NAME" : local.lambda_app_config_name,
@@ -134,10 +141,13 @@ module "lambda_function" {
     var.variables, // User-provided variables will OVERRIDE
   )
 
-  attach_policy_json = true
-  policy_json        = data.aws_iam_policy_document.lambda_function.json
+  timeout = 30
 
+  // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
+
+  cloudwatch_logs_retention_in_days = 1
+
   event_source_mapping = {
     sqs = {
       event_source_arn                   = module.sqs.queue_arn
@@ -150,8 +160,6 @@ module "lambda_function" {
       }
     }
   }
-
-  cloudwatch_logs_retention_in_days = 1
 }
 
 module "sqs" {
@@ -257,6 +265,9 @@ module "cdn" {
         https_port             = 443
         origin_protocol_policy = "https-only"
         origin_ssl_protocols   = ["TLSv1.2"]
+      }
+      custom_header = {
+        "X-Origin-Verify" : sensitive(random_password.x_origin_verify.result)
       }
     }
   }
