@@ -14,7 +14,14 @@ import { router as awsRouter } from './routes/aws/index.js';
 export async function createApp(config?: AppConfig, probot?: Probot): Promise<express.Express> {
 	const app = express();
 	probot ??= createProbot();
-	config ??= AppConfig.parse(process.env);
+	if (!config) {
+		try {
+			config = AppConfig.parse(process.env);
+		} catch (error) {
+			probot.log.error(`Failed to load configuration: ${error}`);
+			process.exit(1);
+		}
+	}
 
 	// Extend app locals context
 	app.locals.probot = probot;
