@@ -141,7 +141,7 @@ module "lambda_function" {
     var.variables, // User-provided variables will OVERRIDE
   )
 
-  timeout = 30
+  timeout = 60
 
   // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
@@ -169,7 +169,7 @@ module "sqs" {
   name = "${var.app_name}-queue"
 
   fifo_queue                 = false
-  visibility_timeout_seconds = 180
+  visibility_timeout_seconds = 300 # 5x of Lambda timeout
 }
 
 data "aws_iam_policy_document" "for_cloudfront" {
