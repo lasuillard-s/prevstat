@@ -1,7 +1,7 @@
 import express from 'express';
 import { createNodeMiddleware, createProbot, Probot } from 'probot';
 import { AppConfig } from './config.js';
-import WorkflowRunCompletedHandler from './handlers/workflow_run.completed.js';
+import WorkflowRunCompletedHandler from './event-handlers/workflow_run.completed.js';
 import { router as apiRouter } from './routes/api/index.js';
 import { router as awsRouter } from './routes/aws/index.js';
 

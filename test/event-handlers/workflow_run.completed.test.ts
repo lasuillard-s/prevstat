@@ -2,7 +2,7 @@ import { SQSClient } from '@aws-sdk/client-sqs';
 import { Context } from 'probot';
 import { beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../src/config.js';
-import WorkflowRunCompletedHandler from '../../src/handlers/workflow_run.completed.js';
+import WorkflowRunCompletedHandler from '../../src/event-handlers/workflow_run.completed.js';
 import { test as it } from '../helpers.js';
 
 describe('WorkflowRunCompletedHandler', () => {

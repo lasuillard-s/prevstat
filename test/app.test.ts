@@ -9,7 +9,7 @@ import {
 } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 
-vi.mock('../src/handlers/workflow_run.completed.js', () => {
+vi.mock('../src/event-handlers/workflow_run.completed.js', () => {
 	return {
 		default: class {
 			handle = vi.fn().mockResolvedValue(undefined);

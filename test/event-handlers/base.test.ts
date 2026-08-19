@@ -1,7 +1,7 @@
 import { Context, Probot } from 'probot';
 import { expect, vi } from 'vitest';
 import { loadConfig } from '../../src/config.js';
-import { BaseHandler } from '../../src/handlers/base.js';
+import { BaseHandler } from '../../src/event-handlers/base.js';
 import { test as it } from '../helpers.js';
 
 /**
