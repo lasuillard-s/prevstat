@@ -2,8 +2,9 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { SendMessageBatchCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Probot, ProbotOctokit } from 'probot';
 import type { AppConfig } from '../../config.js';
-import { buildArtifactPath } from '../../utils/url.js';
-import { downloadArtifact, unzipAndUpload } from '../github.js';
+import { errorToString } from '../../utils/string.js';
+import { ArtifactDownloader, ArtifactUploader } from '../github.js';
+import { buildArtifactPath } from '../url.js';
 
 /**
  * Payload sent to SQS to process a matched GitHub Actions workflow artifact.
@@ -96,98 +97,130 @@ export async function submitArtifactProcessingTasks(
 }
 
 /**
- * Processes an individual SQS record containing artifact processing information.
- * Throws an error if any step in processing fails.
- * @param record SQS record containing the message body
- * @param probot Probot instance for logging and installation auth
- * @param config Application configuration
- * @param s3Client S3 client for uploading artifacts
+ * Worker class that processes SQS records containing GitHub Actions artifact tasks.
  */
-export async function processArtifactRecord(
-	record: SQSRecord,
-	probot: Probot,
-	config: AppConfig,
-	s3Client: S3Client
-): Promise<void> {
-	const message: ProcessArtifactMessage = JSON.parse(record.body);
-	const { installationId, owner, repo, runId, artifactId } = message;
+export class ArtifactProcessor {
+	private readonly downloader: ArtifactDownloader;
+	private readonly uploader: ArtifactUploader;
 
-	const octokit = (
-		installationId ? await probot.auth(installationId) : await probot.auth()
-	) as ProbotOctokit;
+	constructor(
+		private readonly probot: Probot,
+		private readonly config: AppConfig,
+		private readonly s3Client: S3Client
+	) {
+		this.downloader = new ArtifactDownloader(this.probot);
+		this.uploader = new ArtifactUploader(
+			this.s3Client,
+			this.config.S3_BUCKET_NAME,
+			this.probot.log
+		);
+	}
 
-	// Fetch repository to determine visibility (private vs public)
-	const { data: repository } = await octokit.rest.repos.get({
-		owner,
-		repo
-	});
-	const visibility = repository.private ? 'private' : 'public';
+	/**
+	 * Processes an individual SQS record containing artifact processing information.
+	 * Throws an error if any step in processing fails.
+	 * @param record SQS record containing the message body
+	 */
+	async processRecord(record: SQSRecord): Promise<void> {
+		const message: ProcessArtifactMessage = JSON.parse(record.body);
+		const { installationId, owner, repo, runId, artifactId } = message;
 
-	// Fetch artifact details (name, workflow run sha, etc.)
-	const { data: artifact } = await octokit.rest.actions.getArtifact({
-		owner,
-		repo,
-		artifact_id: artifactId
-	});
+		const octokit = (
+			installationId ? await this.probot.auth(installationId) : await this.probot.auth()
+		) as ProbotOctokit;
 
-	const workflowRunId = artifact.workflow_run?.id ?? runId;
-	const headSha = artifact.workflow_run?.head_sha;
+		// Fetch repository to determine visibility (private vs public)
+		const { data: repository } = await octokit.rest.repos.get({
+			owner,
+			repo
+		});
+		const visibility = repository.private ? 'private' : 'public';
 
-	probot.log.info(
-		`Processing artifact ${artifact.name} (id: ${artifact.id}) for ${owner}/${repo} workflow run ${workflowRunId}`
-	);
+		// Fetch artifact details (name, workflow run sha, etc.)
+		const { data: artifact } = await octokit.rest.actions.getArtifact({
+			owner,
+			repo,
+			artifact_id: artifactId
+		});
 
-	const path = buildArtifactPath(
-		visibility,
-		owner,
-		repo,
-		workflowRunId,
-		artifact.name,
-		'index.html'
-	);
-	const targetUrl = `https://${config.CLOUDFRONT_DOMAIN}${path}`;
+		const workflowRunId = artifact.workflow_run?.id ?? runId;
+		const headSha = artifact.workflow_run?.head_sha;
 
-	try {
-		const zipBuffer = await downloadArtifact(octokit, owner, repo, artifact.id);
-		await unzipAndUpload(
-			zipBuffer,
-			artifact.name,
+		this.probot.log.info(
+			`Processing artifact ${artifact.name} (id: ${artifact.id}) for ${owner}/${repo} workflow run ${workflowRunId}`
+		);
+
+		const path = buildArtifactPath(
 			visibility,
 			owner,
 			repo,
 			workflowRunId,
-			config,
-			s3Client,
-			probot.log
+			artifact.name,
+			'index.html'
 		);
-	} catch (error) {
-		if (headSha) {
-			await octokit.rest.checks.create({
+		const targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
+
+		try {
+			const zipBuffer = await this.downloader.download(owner, repo, artifact.id, installationId);
+			await this.uploader.upload(zipBuffer, {
+				artifactName: artifact.name,
+				visibility,
 				owner,
 				repo,
-				name: `Presta / ${artifact.name}`,
-				head_sha: headSha,
-				status: 'completed',
-				conclusion: 'failure',
-				details_url: targetUrl,
-				output: {
-					title: `Artifact: ${artifact.name}`,
-					summary: `Failed to upload artifact ${artifact.name} to S3.`
-				}
+				workflowRunId
+			});
+		} catch (error) {
+			if (headSha) {
+				await octokit.rest.checks.create({
+					owner,
+					repo,
+					name: `Presta / ${artifact.name}`,
+					head_sha: headSha,
+					status: 'completed',
+					conclusion: 'failure',
+					details_url: targetUrl,
+					output: {
+						title: `Artifact: ${artifact.name}`,
+						summary: `Failed to upload artifact ${artifact.name} to S3.`
+					}
+				});
+			}
+			throw error;
+		}
+
+		if (headSha) {
+			await octokit.rest.repos.createCommitStatus({
+				owner,
+				repo,
+				sha: headSha,
+				state: 'success',
+				target_url: targetUrl,
+				description: `Successfully uploaded artifact ${artifact.name} to S3.`,
+				context: `Presta / ${artifact.name}`
 			});
 		}
-		throw error;
 	}
 
-	if (headSha) {
-		await octokit.rest.repos.createCommitStatus({
-			owner,
-			repo,
-			sha: headSha,
-			state: 'success',
-			target_url: targetUrl,
-			description: `Successfully uploaded artifact ${artifact.name} to S3.`,
-			context: `Presta / ${artifact.name}`
-		});
+	/**
+	 * Processes a batch of SQS records concurrently and accumulates any batch item failures.
+	 * @param records Array of SQS records to process
+	 * @returns Array of failed batch item identifiers
+	 */
+	async processBatch(records: SQSRecord[]): Promise<BatchItemFailure[]> {
+		const results = await Promise.all(
+			records.map(async (record) => {
+				try {
+					await this.processRecord(record);
+					return null;
+				} catch (error) {
+					this.probot.log.error(
+						`Failed to process SQS record ${record.messageId}: ${errorToString(error)}`
+					);
+					return { itemIdentifier: record.messageId };
+				}
+			})
+		);
+
+		return results.filter((result): result is BatchItemFailure => result !== null);
 	}
 }

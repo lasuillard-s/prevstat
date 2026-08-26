@@ -5,8 +5,8 @@ import jwt from 'jsonwebtoken';
 import { Probot } from 'probot';
 import type { AppConfig } from '../../config.js';
 import { bakeCloudFrontCookies } from '../../lib/aws/cloudfront.js';
+import { buildRepositoryBasePath, isValidDocumentUri, parseRepoFromUrl } from '../../lib/url.js';
 import { errorToString } from '../../utils/string.js';
-import { buildRepositoryBasePath } from '../../utils/url.js';
 
 export const router = express.Router();
 
@@ -149,59 +149,4 @@ function encryptState(state: State, config: Readonly<AppConfig>): string {
  */
 function decryptState(encryptedState: string, config: Readonly<AppConfig>): State {
 	return jwt.verify(encryptedState, config.JWT_SECRET) as State;
-}
-
-/**
- * Parses the repository owner and name from an artifact document URL.
- * URL path must strictly match `/<visibility>/<owner>/<repo>/<workflowRunId>/<artifactName>/<filePath>`.
- * Throws an error if the URL is invalid or if any path component is missing.
- * @param url The artifact document URL
- * @returns The parsed repository owner and name
- */
-export function parseRepoFromUrl(url: string): { owner: string; repo: string } {
-	const parsedUrl = new URL(url);
-	const parts = parsedUrl.pathname.split('/');
-
-	// Expect ['', visibility, owner, repo, workflowRunId, artifactName, ...filePathParts]
-	if (parts.length < 7) {
-		throw new Error(`Incomplete artifact path in URL: ${url}`);
-	}
-
-	// Extract the required components from the URL path
-	const [, visibility, owner, repo, workflowRunId, artifactName, ...filePathParts] = parts;
-	const filePath = filePathParts.join('/');
-
-	// Validate that all required components are present
-	if (!visibility || !owner || !repo || !workflowRunId || !artifactName || !filePath) {
-		throw new Error(
-			`Missing required path components in URL (${url}): ${JSON.stringify({ visibility, owner, repo, workflowRunId, artifactName, filePath })}`
-		);
-	}
-
-	return {
-		owner: decodeURIComponent(owner),
-		repo: decodeURIComponent(repo)
-	};
-}
-
-/**
- * Validates that the document URI is a valid URL matching the configured CloudFront domain and private path.
- * @param uri The document URI to validate
- * @param config Application configuration
- * @returns True if valid, false otherwise
- */
-export function isValidDocumentUri(uri: string, config: Readonly<AppConfig>): boolean {
-	try {
-		const parsedUrl = new URL(uri);
-		const expectedHost = config.CLOUDFRONT_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-		if (parsedUrl.host !== expectedHost) {
-			return false;
-		}
-		if (!parsedUrl.pathname.startsWith('/private/')) {
-			return false;
-		}
-		return true;
-	} catch {
-		return false;
-	}
 }

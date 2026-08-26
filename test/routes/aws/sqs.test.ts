@@ -4,11 +4,11 @@ import express from 'express';
 import http from 'http';
 import { AddressInfo } from 'net';
 import nock from 'nock';
-import { Probot } from 'probot';
+import type { Probot } from 'probot';
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
-import { router as awsRouter } from '../../../src/routes/aws/index.js';
 import { ProcessArtifactMessage } from '../../../src/lib/aws/sqs.js';
+import { router as awsRouter } from '../../../src/routes/aws/index.js';
 import { test as it } from '../../helpers.js';
 
 describe('POST /aws/sqs router', () => {
@@ -33,7 +33,7 @@ describe('POST /aws/sqs router', () => {
 			};
 		};
 	};
-	let mockProbot: Probot;
+	let currentProbot: Probot;
 
 	const createZipBuffer = (files: Record<string, string>): Buffer => {
 		const zip = new AdmZip();
@@ -43,7 +43,8 @@ describe('POST /aws/sqs router', () => {
 		return zip.toBuffer();
 	};
 
-	beforeEach(async () => {
+	beforeEach<{ probot: Probot }>(async ({ probot }) => {
+		currentProbot = probot;
 		nock.enableNetConnect(/(127\.0\.0\.1|localhost)/);
 
 		appConfig = {
@@ -57,13 +58,11 @@ describe('POST /aws/sqs router', () => {
 			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'test-bucket',
 			SQS_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
-			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
+			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build*']
 		};
 
 		mockS3Send = vi.fn().mockResolvedValue({});
-		mockS3Client = {
-			send: mockS3Send
-		} as unknown as S3Client;
+		mockS3Client = { send: mockS3Send } as unknown as S3Client;
 
 		mockOctokit = {
 			rest: {
@@ -94,19 +93,11 @@ describe('POST /aws/sqs router', () => {
 			}
 		};
 
-		mockProbot = {
-			log: {
-				debug: vi.fn(),
-				info: vi.fn(),
-				warn: vi.fn(),
-				error: vi.fn()
-			},
-			auth: vi.fn().mockResolvedValue(mockOctokit)
-		} as unknown as Probot;
+		vi.spyOn(probot, 'auth').mockResolvedValue(mockOctokit as never);
 
 		app = express();
 		app.use(express.json());
-		app.locals.probot = mockProbot;
+		app.locals.probot = probot;
 		app.locals.config = appConfig;
 		app.locals.s3Client = mockS3Client;
 		app.use('/aws', awsRouter);
@@ -169,7 +160,7 @@ describe('POST /aws/sqs router', () => {
 		expect(response.status).toBe(200);
 		expect(json).toEqual({ batchItemFailures: [] });
 
-		expect(mockProbot.auth).toHaveBeenCalledWith(1234);
+		expect(currentProbot.auth).toHaveBeenCalledWith(1234);
 		expect(mockOctokit.rest.actions.downloadArtifact).toHaveBeenCalledWith({
 			owner: 'my-org',
 			repo: 'my-repo',
@@ -237,7 +228,7 @@ describe('POST /aws/sqs router', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(mockProbot.auth).toHaveBeenCalledWith(); // called without args
+		expect(currentProbot.auth).toHaveBeenCalledWith(); // called without args
 	});
 
 	it('creates check run with failure conclusion when artifact download fails', async () => {

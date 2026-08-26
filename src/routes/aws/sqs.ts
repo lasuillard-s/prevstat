@@ -3,12 +3,11 @@ import express, { Request, Response } from 'express';
 import type { Probot } from 'probot';
 import type { AppConfig } from '../../config.js';
 import {
+	ArtifactProcessor,
 	type BatchItemFailure,
-	processArtifactRecord,
 	type SQSEvent,
 	type SQSRecord
 } from '../../lib/aws/sqs.js';
-import { errorToString } from '../../utils/string.js';
 
 export const router = express.Router();
 export type { BatchItemFailure, SQSEvent, SQSRecord };
@@ -29,17 +28,8 @@ router.post('/', async (req: Request<Record<string, string>, unknown, SQSEvent>,
 	const config = req.app.locals.config as AppConfig;
 	const s3Client = getS3Client(req);
 
-	const records = req.body.Records ?? [];
-	const batchItemFailures: BatchItemFailure[] = [];
-
-	for (const record of records) {
-		try {
-			await processArtifactRecord(record, probot, config, s3Client);
-		} catch (error) {
-			probot.log.error(`Failed to process SQS record ${record.messageId}: ${errorToString(error)}`);
-			batchItemFailures.push({ itemIdentifier: record.messageId });
-		}
-	}
+	const processor = new ArtifactProcessor(probot, config, s3Client);
+	const batchItemFailures = await processor.processBatch(req.body.Records ?? []);
 
 	res.status(200).json({ batchItemFailures });
 });

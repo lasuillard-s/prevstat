@@ -2,17 +2,6 @@ import type { Logger } from 'pino';
 import type { ProbotOctokit } from 'probot';
 import { Context } from 'probot';
 import { AppConfig } from '../config.js';
-import { Repo } from '../lib/github.js';
-
-export const CHECK_RUN_NAME = 'Dev Container Check';
-
-/**
- * Base class for webhook event handlers.
- *
- * Holds the shared event context (octokit, log, repo) and the application
- * configuration, and exposes the contextual utilities that were previously
- * threaded through the config object or duplicated across handlers.
- */
 export abstract class BaseHandler<C extends Context = Context> {
 	/** The Probot event context for the current webhook delivery. */
 	protected readonly context: C;
@@ -39,7 +28,7 @@ export abstract class BaseHandler<C extends Context = Context> {
 	 * Returns the owner/repo of the repository the event was delivered for.
 	 * @returns The owner and repo of the event's repository
 	 */
-	protected repo(): Repo {
-		return Repo.fromContext(this.context);
+	protected repo(): { owner: string; repo: string } {
+		return this.context.repo();
 	}
 }

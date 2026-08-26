@@ -6,14 +6,11 @@ import http from 'http';
 import jwt from 'jsonwebtoken';
 import { AddressInfo } from 'net';
 import nock from 'nock';
-import { Probot } from 'probot';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Probot } from 'probot';
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
-import {
-	router as authRouter,
-	isValidDocumentUri,
-	parseRepoFromUrl
-} from '../../../src/routes/api/auth.js';
+import { router as authRouter } from '../../../src/routes/api/auth.js';
+import { test as it } from '../../helpers.js';
 
 vi.mock('@octokit/auth-oauth-user', () => ({
 	createOAuthUserAuth: vi.fn()
@@ -34,9 +31,8 @@ describe('GET /api/auth router', () => {
 	let server: http.Server;
 	let serverUrl: string;
 	let appConfig: AppConfig;
-	let mockProbot: Probot;
 
-	beforeEach(async () => {
+	beforeEach<{ probot: Probot }>(async ({ probot }) => {
 		nock.enableNetConnect(/(127\.0\.0\.1|localhost)/);
 
 		appConfig = {
@@ -53,18 +49,9 @@ describe('GET /api/auth router', () => {
 			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
 		};
 
-		mockProbot = {
-			log: {
-				debug: vi.fn(),
-				info: vi.fn(),
-				warn: vi.fn(),
-				error: vi.fn()
-			}
-		} as unknown as Probot;
-
 		app = express();
 		app.use(express.json());
-		app.locals.probot = mockProbot;
+		app.locals.probot = probot;
 		app.locals.config = appConfig;
 		app.use('/api/auth', authRouter);
 
@@ -237,88 +224,6 @@ describe('GET /api/auth router', () => {
 				privateKey: 'key',
 				policy: expect.any(String)
 			});
-		});
-	});
-
-	describe('parseRepoFromUrl', () => {
-		it('parses owner and repo from a complete artifact URL', () => {
-			const result = parseRepoFromUrl(
-				'https://assets.example.com/private/my-org/my-repo/123/build-output/index.html'
-			);
-			expect(result).toEqual({ owner: 'my-org', repo: 'my-repo' });
-		});
-
-		it('parses URL-encoded owner and repo correctly', () => {
-			const result = parseRepoFromUrl(
-				'https://assets.example.com/private/my%2Dorg/my%2Drepo/123/build-output/sub/dir/index.html'
-			);
-			expect(result).toEqual({ owner: 'my-org', repo: 'my-repo' });
-		});
-
-		it('throws an error for incomplete path patterns', () => {
-			// Missing filePath
-			expect(() =>
-				parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo/123/build-output')
-			).toThrow('Incomplete artifact path in URL');
-
-			// Missing artifactName
-			expect(() =>
-				parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo/123')
-			).toThrow('Incomplete artifact path in URL');
-
-			// Missing workflowRunId
-			expect(() => parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo')).toThrow(
-				'Incomplete artifact path in URL'
-			);
-
-			// Missing repo
-			expect(() => parseRepoFromUrl('https://assets.example.com/private/my-org')).toThrow(
-				'Incomplete artifact path in URL'
-			);
-		});
-
-		it('throws an error if any required component is empty', () => {
-			expect(() =>
-				parseRepoFromUrl('https://assets.example.com/private//my-repo/123/build-output/index.html')
-			).toThrow('Missing required path components in URL');
-		});
-
-		it('throws an error for invalid URL string', () => {
-			expect(() => parseRepoFromUrl('invalid-url')).toThrow();
-		});
-	});
-
-	describe('isValidDocumentUri', () => {
-		it('returns true for valid CloudFront private document URIs', () => {
-			expect(
-				isValidDocumentUri(
-					'https://assets.example.com/private/my-org/my-repo/123/build-output/index.html',
-					appConfig
-				)
-			).toBe(true);
-		});
-
-		it('returns false for foreign domains', () => {
-			expect(
-				isValidDocumentUri(
-					'https://attacker.com/private/my-org/my-repo/123/build-output/index.html',
-					appConfig
-				)
-			).toBe(false);
-		});
-
-		it('returns false for non-private paths', () => {
-			expect(
-				isValidDocumentUri(
-					'https://assets.example.com/public/my-org/my-repo/123/build-output/index.html',
-					appConfig
-				)
-			).toBe(false);
-			expect(isValidDocumentUri('https://assets.example.com/api/auth', appConfig)).toBe(false);
-		});
-
-		it('returns false for malformed URLs', () => {
-			expect(isValidDocumentUri('not-a-url', appConfig)).toBe(false);
 		});
 	});
 });
