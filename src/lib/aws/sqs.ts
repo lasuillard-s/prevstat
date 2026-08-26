@@ -107,7 +107,12 @@ export class ArtifactProcessor {
 		private readonly config: AppConfig,
 		private readonly s3Client?: S3Client
 	) {
-		this.s3Client = s3Client ?? new S3Client();
+		this.s3Client =
+			s3Client ??
+			new S3Client({
+				// See https://github.com/aws/aws-sdk-js-v3/issues/7136
+				forcePathStyle: process.env.AWS_S3_USE_PATH_STYLE_ENDPOINT === 'true'
+			});
 		this.uploader = new ArtifactUploader(
 			this.s3Client,
 			this.config.S3_BUCKET_NAME,
