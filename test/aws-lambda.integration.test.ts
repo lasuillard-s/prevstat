@@ -43,7 +43,13 @@ describe('AWS integration with LocalStack', () => {
 	});
 
 	it.beforeEach(({ localstack }) => {
-		nock.enableNetConnect(localstack.host);
+		nock.enableNetConnect(
+			(host) =>
+				host.includes(localstack.host) ||
+				host.includes(localstack.hostname) ||
+				host.includes('127.0.0.1') ||
+				host.includes('localhost')
+		);
 
 		// Set environment variables for AWS SDK to use LocalStack
 		vi.stubEnv('AWS_ENDPOINT_URL', localstack.href);
