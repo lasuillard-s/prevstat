@@ -157,7 +157,8 @@ export async function processArtifactRecord(
 			repo,
 			workflowRunId,
 			config,
-			s3Client
+			s3Client,
+			probot.log
 		);
 	} catch (error) {
 		if (headSha) {

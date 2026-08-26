@@ -9,7 +9,11 @@ import nock from 'nock';
 import { Probot } from 'probot';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
-import { router as authRouter, parseRepoFromUrl } from '../../../src/routes/api/auth.js';
+import {
+	router as authRouter,
+	isValidDocumentUri,
+	parseRepoFromUrl
+} from '../../../src/routes/api/auth.js';
 
 vi.mock('@octokit/auth-oauth-user', () => ({
 	createOAuthUserAuth: vi.fn()
@@ -86,7 +90,21 @@ describe('GET /api/auth router', () => {
 		it('returns 400 when redirect_uri is missing', async () => {
 			const response = await fetch(`${serverUrl}/api/auth`);
 			expect(response.status).toBe(400);
-			expect(await response.text()).toBe('Missing redirect URI');
+			expect(await response.text()).toBe('Invalid redirect URI');
+		});
+
+		it('returns 400 when redirect_uri is for an untrusted domain or not private', async () => {
+			const response1 = await fetch(
+				`${serverUrl}/api/auth?redirect_uri=${encodeURIComponent('https://evil.com/private/my-org/my-repo/index.html')}`
+			);
+			expect(response1.status).toBe(400);
+			expect(await response1.text()).toBe('Invalid redirect URI');
+
+			const response2 = await fetch(
+				`${serverUrl}/api/auth?redirect_uri=${encodeURIComponent('https://assets.example.com/public/my-org/my-repo/index.html')}`
+			);
+			expect(response2.status).toBe(400);
+			expect(await response2.text()).toBe('Invalid redirect URI');
 		});
 
 		it('redirects to GitHub login with correct parameters', async () => {
@@ -145,21 +163,34 @@ describe('GET /api/auth router', () => {
 			expect(await response2.text()).toBe('Missing code or state');
 		});
 
-		it('returns 500 or handles invalid state gracefully', async () => {
+		it('returns 400 on invalid or expired state JWT', async () => {
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=invalid-jwt`);
-			// jwt.verify throws an error, express might return 500 if unhandled
-			expect(response.status).toBe(500);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid or expired state');
 		});
 
 		it('returns 400 if state has no documentUri', async () => {
 			const badState = jwt.sign({}, appConfig.JWT_SECRET);
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${badState}`);
 			expect(response.status).toBe(400);
-			expect(await response.text()).toBe('Invalid state');
+			expect(await response.text()).toBe('Invalid state: redirect URI missing or invalid');
+		});
+
+		it('returns 400 if documentUri targets an untrusted domain (open redirect attempt)', async () => {
+			const evilState = jwt.sign(
+				{ documentUri: 'https://evil.com/private/my-org/my-repo/123/build-output/index.html' },
+				appConfig.JWT_SECRET
+			);
+			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${evilState}`);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid state: redirect URI missing or invalid');
 		});
 
 		it('returns 400 if documentUri is unparseable or incomplete for owner/repo', async () => {
-			const badUriState = jwt.sign({ documentUri: 'invalid-url' }, appConfig.JWT_SECRET);
+			const badUriState = jwt.sign(
+				{ documentUri: 'https://assets.example.com/private/my-org' },
+				appConfig.JWT_SECRET
+			);
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${badUriState}`);
 			expect(response.status).toBe(400);
 			expect(await response.text()).toBe('Invalid redirect URI');
@@ -254,6 +285,40 @@ describe('GET /api/auth router', () => {
 
 		it('throws an error for invalid URL string', () => {
 			expect(() => parseRepoFromUrl('invalid-url')).toThrow();
+		});
+	});
+
+	describe('isValidDocumentUri', () => {
+		it('returns true for valid CloudFront private document URIs', () => {
+			expect(
+				isValidDocumentUri(
+					'https://assets.example.com/private/my-org/my-repo/123/build-output/index.html',
+					appConfig
+				)
+			).toBe(true);
+		});
+
+		it('returns false for foreign domains', () => {
+			expect(
+				isValidDocumentUri(
+					'https://attacker.com/private/my-org/my-repo/123/build-output/index.html',
+					appConfig
+				)
+			).toBe(false);
+		});
+
+		it('returns false for non-private paths', () => {
+			expect(
+				isValidDocumentUri(
+					'https://assets.example.com/public/my-org/my-repo/123/build-output/index.html',
+					appConfig
+				)
+			).toBe(false);
+			expect(isValidDocumentUri('https://assets.example.com/api/auth', appConfig)).toBe(false);
+		});
+
+		it('returns false for malformed URLs', () => {
+			expect(isValidDocumentUri('not-a-url', appConfig)).toBe(false);
 		});
 	});
 });

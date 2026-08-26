@@ -1,19 +1,7 @@
-import { Probot } from 'probot';
-import { beforeEach, describe, expect, vi } from 'vitest';
-import { loadConfig } from '../src/config.js';
-import { test as it } from './helpers.js';
+import { describe, expect, it, vi } from 'vitest';
+import { AppConfig } from '../src/config.js';
 
-describe('loadConfig', () => {
-	let probot: Probot;
-
-	beforeEach(() => {
-		probot = {
-			log: {
-				error: vi.fn()
-			}
-		} as unknown as Probot;
-	});
-
+describe('AppConfig', () => {
 	it('loads valid config with reasonable defaults', () => {
 		// Arrange (required only)
 		vi.stubEnv('GITHUB_CLIENT_ID', 'test-client-id');
@@ -30,7 +18,7 @@ describe('loadConfig', () => {
 		);
 
 		// Act & Assert
-		const config = loadConfig(probot);
+		const config = AppConfig.parse(process.env);
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'test-client-id',
 			GITHUB_CLIENT_SECRET: 'test-client-secret',
@@ -59,7 +47,7 @@ describe('loadConfig', () => {
 		vi.stubEnv('ARTIFACT_PATTERNS', 'custom/repo:*:*');
 
 		// Act & Assert
-		const config = loadConfig(probot);
+		const config = AppConfig.parse(process.env);
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'custom-client-id',
 			GITHUB_CLIENT_SECRET: 'custom-client-secret',
@@ -73,11 +61,26 @@ describe('loadConfig', () => {
 		});
 	});
 
-	it('exits process when required configuration is missing', () => {
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+	it('filters out empty entries in ARTIFACT_PATTERNS', () => {
+		// Arrange
+		vi.stubEnv('GITHUB_CLIENT_ID', 'test-client-id');
+		vi.stubEnv('GITHUB_CLIENT_SECRET', 'test-client-secret');
+		vi.stubEnv('CLOUDFRONT_DOMAIN', 'https://test.cloudfront.net');
+		vi.stubEnv('CLOUDFRONT_PRIVATE_KEY', 'test-private-key');
+		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'test-key-pair-id');
+		vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
+		vi.stubEnv('S3_BUCKET_NAME', 'test-bucket');
+		vi.stubEnv('SQS_QUEUE_URL', 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue');
+		vi.stubEnv('ARTIFACT_PATTERNS', 'owner/repo:*:artifact, , another/repo:*:*, ');
 
-		loadConfig(probot);
+		// Act
+		const config = AppConfig.parse(process.env);
 
-		expect(exitSpy).toHaveBeenCalledWith(1);
+		// Assert
+		expect(config.ARTIFACT_PATTERNS).toEqual(['owner/repo:*:artifact', 'another/repo:*:*']);
+	});
+
+	it('throws an error when required configuration is missing', () => {
+		expect(() => AppConfig.parse({})).toThrow();
 	});
 });

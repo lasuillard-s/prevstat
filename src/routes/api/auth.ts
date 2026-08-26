@@ -5,8 +5,8 @@ import jwt from 'jsonwebtoken';
 import { Probot } from 'probot';
 import type { AppConfig } from '../../config.js';
 import { bakeCloudFrontCookies } from '../../lib/aws/cloudfront.js';
-import { buildRepositoryBasePath } from '../../utils/url.js';
 import { errorToString } from '../../utils/string.js';
+import { buildRepositoryBasePath } from '../../utils/url.js';
 
 export const router = express.Router();
 
@@ -16,8 +16,9 @@ router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string 
 	const clientId = config.GITHUB_CLIENT_ID;
 
 	const documentUri = req.query.redirect_uri;
-	if (!documentUri) {
-		return res.status(400).send('Missing redirect URI');
+	if (!documentUri || !isValidDocumentUri(documentUri, config)) {
+		probot.log.error(`Invalid redirect URI in authorization request: ${documentUri}`);
+		return res.status(400).send('Invalid redirect URI');
 	}
 
 	// Prepare parameters for login redirection
@@ -56,12 +57,19 @@ router.get(
 			return res.status(400).send('Missing code or state');
 		}
 
-		// Load the request URL from the database for the state (TTL or bad access)
-		const state = decryptState(encryptedState, config);
+		// Decrypt the state token
+		let state: State;
+		try {
+			state = decryptState(encryptedState, config);
+		} catch (error) {
+			probot.log.error(`Failed to decrypt state in callback: ${errorToString(error)}`);
+			return res.status(400).send('Invalid or expired state');
+		}
+
 		const documentUri = state.documentUri;
-		if (!documentUri) {
-			probot.log.error(`Invalid state: ${JSON.stringify(state)}, no original redirect URI found`);
-			return res.status(400).send('Invalid state');
+		if (!documentUri || !isValidDocumentUri(documentUri, config)) {
+			probot.log.error(`Invalid state: no valid redirect URI found in state (${documentUri})`);
+			return res.status(400).send('Invalid state: redirect URI missing or invalid');
 		}
 
 		// Exchange the code for an access token using GitHub OAuth
@@ -174,4 +182,26 @@ export function parseRepoFromUrl(url: string): { owner: string; repo: string } {
 		owner: decodeURIComponent(owner),
 		repo: decodeURIComponent(repo)
 	};
+}
+
+/**
+ * Validates that the document URI is a valid URL matching the configured CloudFront domain and private path.
+ * @param uri The document URI to validate
+ * @param config Application configuration
+ * @returns True if valid, false otherwise
+ */
+export function isValidDocumentUri(uri: string, config: Readonly<AppConfig>): boolean {
+	try {
+		const parsedUrl = new URL(uri);
+		const expectedHost = config.CLOUDFRONT_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+		if (parsedUrl.host !== expectedHost) {
+			return false;
+		}
+		if (!parsedUrl.pathname.startsWith('/private/')) {
+			return false;
+		}
+		return true;
+	} catch {
+		return false;
+	}
 }

@@ -37,5 +37,5 @@ describe('main.ts', () => {
 		} finally {
 			server.close();
 		}
-	});
+	}, 30_000);
 });

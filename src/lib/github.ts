@@ -1,7 +1,8 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import mime from 'mime-types';
-import type { Context, ProbotOctokit } from 'probot';
+import path from 'path';
+import type { Context, Probot, ProbotOctokit } from 'probot';
 import type { AppConfig } from '../config.js';
 import { buildArtifactPath } from '../utils/url.js';
 
@@ -73,8 +74,33 @@ export async function downloadArtifact(
 }
 
 /**
- * Extracts a zip archive buffer and uploads each file to S3.
- * @param zipBuffer Buffer containing the zipped artifact
+ * Safely sanitizes a zip entry name by normalizing separators, removing leading slashes,
+ * and rejecting path traversal (e.g. `..`).
+ * @param entryName The entry name from the zip archive
+ * @returns The sanitized safe relative path, or null if invalid or unsafe
+ */
+export function sanitizeZipEntryPath(entryName: string): string | null {
+	const normalized = entryName.replace(/\\/g, '/');
+	const posixNormalized = path.posix.normalize(normalized);
+	const cleanPath = posixNormalized.replace(/^\/+/, '');
+
+	if (
+		!cleanPath ||
+		cleanPath === '.' ||
+		cleanPath.startsWith('../') ||
+		cleanPath === '..' ||
+		cleanPath.split('/').includes('..')
+	) {
+		return null;
+	}
+
+	return cleanPath;
+}
+
+/**
+ * Downloads artifact, unzips it in-memory, and uploads each file to S3.
+ * Skips directory entries and unsafe paths.
+ * @param zipBuffer Zip file buffer
  * @param artifactName Name of the artifact
  * @param visibility Visibility of the repository ('private' | 'public')
  * @param owner Repository owner
@@ -82,6 +108,7 @@ export async function downloadArtifact(
  * @param workflowRunId GitHub workflow run ID
  * @param config Application configuration
  * @param s3Client S3 client for file upload
+ * @param log Optional logger instance
  */
 export async function unzipAndUpload(
 	zipBuffer: Buffer,
@@ -91,7 +118,8 @@ export async function unzipAndUpload(
 	repo: string,
 	workflowRunId: number,
 	config: AppConfig,
-	s3Client: S3Client
+	s3Client: S3Client,
+	log: Probot['log']
 ): Promise<void> {
 	const zip = new AdmZip(zipBuffer);
 	const zipEntries = zip.getEntries();
@@ -99,16 +127,24 @@ export async function unzipAndUpload(
 	const uploadPromises = zipEntries.map(async (entry) => {
 		if (entry.isDirectory) return;
 
+		const safeEntryName = sanitizeZipEntryPath(entry.entryName);
+		if (!safeEntryName) {
+			log?.warn(
+				`Skipping unsafe or invalid zip entry path: "${entry.entryName}" in artifact ${artifactName}`
+			);
+			return;
+		}
+
 		const path = buildArtifactPath(
 			visibility,
 			owner,
 			repo,
 			workflowRunId,
 			artifactName,
-			entry.entryName
+			safeEntryName
 		);
 		const s3Key = path.startsWith('/') ? path.substring(1) : path;
-		const contentType = mime.lookup(entry.entryName) || 'application/octet-stream';
+		const contentType = mime.lookup(safeEntryName) || 'application/octet-stream';
 
 		await s3Client.send(
 			new PutObjectCommand({

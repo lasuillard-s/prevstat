@@ -1,3 +1,4 @@
+import { getCurrentInvoke } from '@codegenie/serverless-express';
 import express from 'express';
 import { createNodeMiddleware, createProbot, Probot } from 'probot';
 import { AppConfig } from './config.js';
@@ -61,20 +62,30 @@ export function originVerificationMiddleware(
 	const probot = req.app.locals.probot as Probot;
 	const config = req.app.locals.config as AppConfig;
 
-	// If event is coming from AWS internal services, we skip the origin verification.
-	// The host header is set by serverless-express so client requests cannot spoof it.
-	// See https://github.com/CodeGenieApp/serverless-express#eventsourceroutes
+	/*
+	 Internal AWS service routes (/aws/*) are dispatched by serverless-express
+	 using event source mapping (e.g. AWS_SQS).
+
+	 To prevent spoofing via public HTTP requests with forged Host headers,
+	 verify the true invocation event from the AWS Lambda runtime.
+
+	 See: https://github.com/CodeGenieApp/serverless-express#accessing-the-event-and-context-objects
+	*/
 	if (req.path.startsWith('/aws')) {
-		if (!req.host.endsWith('.amazonaws.com')) {
+		const { event } = getCurrentInvoke();
+		const source = getAwsSource(event);
+
+		if (source === null) {
 			probot.log.warn(
-				{ method: req.method, url: req.url, host: req.host },
-				'Forbidden request from non-AWS host'
+				{ method: req.method, url: req.url, host: req.host, source },
+				'Forbidden request to internal AWS endpoint'
 			);
 			res.status(403).json({ message: 'Forbidden' });
 			return;
 		}
+
 		probot.log.debug(
-			{ method: req.method, url: req.url, host: req.host },
+			{ method: req.method, url: req.url, source },
 			'Bypassing origin verification for AWS internal service request'
 		);
 		next();
@@ -92,6 +103,26 @@ export function originVerificationMiddleware(
 	}
 
 	next();
+}
+
+/**
+ * Detects the AWS event source from a Lambda invocation event.
+ * @param event Raw event passed to Lambda handler
+ * @returns The detected AWS event source name, or undefined if not recognized
+ */
+export function getAwsSource(event: unknown): 'aws:sqs' | null {
+	if (!event || typeof event !== 'object') {
+		return null;
+	}
+
+	if ('Records' in event && Array.isArray((event as { Records: unknown[] }).Records)) {
+		const records = (event as { Records: Array<{ eventSource?: string }> }).Records;
+		if (records.length > 0 && records[0]?.eventSource === 'aws:sqs') {
+			return 'aws:sqs';
+		}
+	}
+
+	return null;
 }
 
 /**

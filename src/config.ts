@@ -1,6 +1,4 @@
-import type { Probot } from 'probot';
 import * as z from 'zod';
-import { errorToString } from './utils/string.js';
 
 export const AppConfig = z.object({
 	GITHUB_CLIENT_ID: z.string().describe('GitHub OAuth App Client ID'),
@@ -40,20 +38,11 @@ export const AppConfig = z.object({
 		.describe(
 			'Comma separated list of artifact glob patterns. Format: owner/repo:workflow_path:artifact (e.g. owner/repo:.github/workflows/ci.yaml:artifact)'
 		)
-		.transform((val) => val.split(',').map((s) => s.trim()))
+		.transform((val) =>
+			val
+				.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean)
+		)
 });
 export type AppConfig = z.infer<typeof AppConfig>;
-
-/**
- * Load app configuration from environment variables.
- * @param app Current Probot app instance
- * @returns Validated application configuration
- */
-export function loadConfig(app: Probot): AppConfig {
-	try {
-		return AppConfig.parse(process.env);
-	} catch (error) {
-		app.log.error(`Failed to load configuration: ${errorToString(error)}`);
-		process.exit(1);
-	}
-}

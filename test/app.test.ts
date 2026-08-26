@@ -3,11 +3,17 @@ import type { Probot } from 'probot';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createApp,
+	getAwsSource,
 	notFoundMiddleware,
 	originVerificationMiddleware,
 	setupProbotApp
 } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
+
+const mockGetCurrentInvoke = vi.fn().mockReturnValue({});
+vi.mock('@codegenie/serverless-express', () => ({
+	getCurrentInvoke: () => mockGetCurrentInvoke()
+}));
 
 vi.mock('../src/event-handlers/workflow_run.completed.js', () => {
 	return {
@@ -93,15 +99,38 @@ describe('app.ts', () => {
 			return { req, res, next };
 		};
 
-		it('allows AWS internal requests if host is .amazonaws.com', () => {
-			const { req, res, next } = createMockReqRes('/aws/sqs', 'lambda.amazonaws.com');
+		it('allows AWS internal requests if event is from SQS', () => {
+			mockGetCurrentInvoke.mockReturnValue({
+				event: {
+					Records: [
+						{
+							eventSource: 'aws:sqs'
+						}
+					]
+				}
+			});
+			const { req, res, next } = createMockReqRes('/aws/sqs', 'sqs.amazonaws.com');
 			originVerificationMiddleware(req, res, next);
 			expect(next).toHaveBeenCalled();
 			expect(res.status).not.toHaveBeenCalled();
 		});
 
-		it('rejects /aws requests from non-AWS hosts', () => {
-			const { req, res, next } = createMockReqRes('/aws/sqs', 'example.com');
+		it('rejects /aws requests if event is not from SQS (e.g. spoofed host header over HTTP)', () => {
+			mockGetCurrentInvoke.mockReturnValue({
+				event: {
+					requestContext: { http: { method: 'POST' } }
+				}
+			});
+			const { req, res, next } = createMockReqRes('/aws/sqs', 'sqs.amazonaws.com');
+			originVerificationMiddleware(req, res, next);
+			expect(res.status).toHaveBeenCalledWith(403);
+			expect(res.json).toHaveBeenCalledWith({ message: 'Forbidden' });
+			expect(next).not.toHaveBeenCalled();
+		});
+
+		it('rejects /aws requests if getCurrentInvoke has no event', () => {
+			mockGetCurrentInvoke.mockReturnValue({});
+			const { req, res, next } = createMockReqRes('/aws/sqs', 'sqs.amazonaws.com');
 			originVerificationMiddleware(req, res, next);
 			expect(res.status).toHaveBeenCalledWith(403);
 			expect(res.json).toHaveBeenCalledWith({ message: 'Forbidden' });
@@ -129,6 +158,25 @@ describe('app.ts', () => {
 			originVerificationMiddleware(req, res, next);
 			expect(next).toHaveBeenCalled();
 			expect(res.status).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('getAwsSource', () => {
+		it('returns "aws:sqs" when event contains SQS records', () => {
+			const event = {
+				Records: [{ eventSource: 'aws:sqs', body: '{}' }]
+			};
+			expect(getAwsSource(event)).toBe('aws:sqs');
+		});
+
+		it('returns null for non-SQS records or non-AWS events', () => {
+			expect(getAwsSource(null)).toBeNull();
+			expect(getAwsSource(undefined)).toBeNull();
+			expect(getAwsSource('string')).toBeNull();
+			expect(getAwsSource({})).toBeNull();
+			expect(getAwsSource({ Records: [] })).toBeNull();
+			expect(getAwsSource({ Records: [{ eventSource: 'custom' }] })).toBeNull();
+			expect(getAwsSource({ requestContext: { http: {} } })).toBeNull();
 		});
 	});
 

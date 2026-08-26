@@ -51,14 +51,95 @@ describe('downloadArtifact', () => {
 	});
 });
 
+describe('sanitizeZipEntryPath', () => {
+	it('preserves valid relative paths and normalizes backslashes and leading slashes', async () => {
+		const { sanitizeZipEntryPath } = await import('../../src/lib/github.js');
+
+		expect(sanitizeZipEntryPath('index.html')).toBe('index.html');
+		expect(sanitizeZipEntryPath('assets/main.css')).toBe('assets/main.css');
+		expect(sanitizeZipEntryPath('nested/dir/app.js')).toBe('nested/dir/app.js');
+		expect(sanitizeZipEntryPath('assets\\style.css')).toBe('assets/style.css');
+		expect(sanitizeZipEntryPath('/index.html')).toBe('index.html');
+		expect(sanitizeZipEntryPath('///assets/style.css')).toBe('assets/style.css');
+		expect(sanitizeZipEntryPath('./assets/./style.css')).toBe('assets/style.css');
+	});
+
+	it('returns null for path traversal or invalid paths', async () => {
+		const { sanitizeZipEntryPath } = await import('../../src/lib/github.js');
+
+		expect(sanitizeZipEntryPath('..')).toBeNull();
+		expect(sanitizeZipEntryPath('../index.html')).toBeNull();
+		expect(sanitizeZipEntryPath('../../etc/passwd')).toBeNull();
+		expect(sanitizeZipEntryPath('nested/../../etc/passwd')).toBeNull();
+		expect(sanitizeZipEntryPath('.')).toBeNull();
+		expect(sanitizeZipEntryPath('')).toBeNull();
+		expect(sanitizeZipEntryPath('///')).toBeNull();
+	});
+});
+
 describe('unzipAndUpload', () => {
 	const mockConfig = {
 		S3_BUCKET_NAME: 'test-bucket'
 	};
 
+	it('uploads valid files and skips unsafe/traversal entries', async () => {
+		const { unzipAndUpload } = await import('../../src/lib/github.js');
+		const AdmZip = (await import('adm-zip')).default;
+		const zip = new AdmZip();
+		zip.addFile('index.html', Buffer.from('hello'));
+		zip.addFile('assets\\app.js', Buffer.from('console.log(1)'));
+		zip.addFile('evil.html', Buffer.from('evil'));
+		const entries = zip.getEntries();
+		entries[2].entryName = '../../evil.html';
+		const zipBuffer = zip.toBuffer();
+
+		const mockS3Client = {
+			send: vi.fn().mockResolvedValue({})
+		};
+		const mockLog = {
+			warn: vi.fn(),
+			info: vi.fn(),
+			error: vi.fn(),
+			debug: vi.fn()
+		};
+
+		await unzipAndUpload(
+			zipBuffer,
+			'my-artifact',
+			'private',
+			'owner',
+			'repo',
+			123,
+			mockConfig as never,
+			mockS3Client as never,
+			mockLog as never
+		);
+
+		expect(mockLog.warn).toHaveBeenCalledWith(
+			expect.stringContaining('Skipping unsafe or invalid zip entry path: "../../evil.html"')
+		);
+
+		expect(mockS3Client.send).toHaveBeenCalledTimes(2);
+		expect(mockS3Client.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({
+					Key: 'private/owner/repo/123/my-artifact/index.html'
+				})
+			})
+		);
+		expect(mockS3Client.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({
+					Key: 'private/owner/repo/123/my-artifact/assets/app.js'
+				})
+			})
+		);
+	});
+
 	it('throws if buffer is not a valid zip', async () => {
 		const { unzipAndUpload } = await import('../../src/lib/github.js');
 		const mockS3Client = { send: vi.fn() };
+		const mockLog = { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() };
 
 		await expect(
 			unzipAndUpload(
@@ -69,7 +150,8 @@ describe('unzipAndUpload', () => {
 				'repo',
 				123,
 				mockConfig as never,
-				mockS3Client as never
+				mockS3Client as never,
+				mockLog as never
 			)
 		).rejects.toThrow();
 	});
@@ -84,6 +166,7 @@ describe('unzipAndUpload', () => {
 		const mockS3Client = {
 			send: vi.fn().mockRejectedValue(new Error('S3 Access Denied'))
 		};
+		const mockLog = { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() };
 
 		await expect(
 			unzipAndUpload(
@@ -94,7 +177,8 @@ describe('unzipAndUpload', () => {
 				'repo',
 				123,
 				mockConfig as never,
-				mockS3Client as never
+				mockS3Client as never,
+				mockLog as never
 			)
 		).rejects.toThrow('S3 Access Denied');
 	});
