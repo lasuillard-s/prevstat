@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: ['test/**/*.test.ts'],
+		hookTimeout: 180_000, // 3 minutes for integration tests with LocalStack
+		testTimeout: 10_000,
 		reporters: ['junit', 'default'],
 		outputFile: {
 			junit: './junit.xml'
