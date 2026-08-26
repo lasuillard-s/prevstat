@@ -1,16 +1,16 @@
+import { LocalstackContainer } from '@testcontainers/localstack';
 import fs from 'fs';
 import path from 'path';
 import { Probot, ProbotOctokit } from 'probot';
 import { fileURLToPath } from 'url';
 import { test as baseTest } from 'vitest';
-import { type LocalStackFixture, setupLocalStack } from './fixtures/localstack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const privateKey = fs.readFileSync(path.join(__dirname, 'fixtures/mock-cert.pem'), 'utf-8');
 
 export interface TestFixtures {
 	probot: Probot;
-	localstack: LocalStackFixture;
+	localstack: URL;
 }
 
 export const test = baseTest.extend<TestFixtures>({
@@ -27,10 +27,18 @@ export const test = baseTest.extend<TestFixtures>({
 		});
 		await use(probot);
 	},
-	// eslint-disable-next-line no-empty-pattern
-	localstack: async ({}, use) => {
-		const fixture = await setupLocalStack();
-		await use(fixture);
-		await fixture.stop();
-	}
+	localstack: [
+		// eslint-disable-next-line no-empty-pattern
+		async ({}, use) => {
+			// NOTE: LocalStack 4 enforces auth tokens, so we use LocalStack 3.x for testing to avoid authentication issues.
+			const container = await new LocalstackContainer('localstack/localstack:3.8.1').start();
+			const endpoint = new URL(container.getConnectionUri());
+			try {
+				await use(endpoint);
+			} finally {
+				await container.stop();
+			}
+		},
+		{ scope: 'worker' }
+	]
 });

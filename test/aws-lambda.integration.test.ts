@@ -1,26 +1,59 @@
+import { CreateBucketCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { CreateQueueCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import AdmZip from 'adm-zip';
 import fs from 'fs';
+import nock from 'nock';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { PutParameterCommand } from '@aws-sdk/client-ssm';
-import AdmZip from 'adm-zip';
-import nock from 'nock';
 import { describe, expect, vi } from 'vitest';
 import { test as it } from './helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const privateKey = fs.readFileSync(path.join(__dirname, 'fixtures/mock-cert.pem'), 'utf-8');
 
-describe('aws-lambda.ts integration with LocalStack', () => {
-	it('loads config from SSM, initializes Lambda handler, and processes SQS record uploading to S3', async ({
-		localstack: fixture
-	}) => {
-		const localstackHost = new URL(fixture.endpoint).host;
-		nock.enableNetConnect(
-			(host) =>
-				host.includes(localstackHost) || host.includes('127.0.0.1') || host.includes('localhost')
-		);
+describe('AWS integration with LocalStack', () => {
+	const region = 'us-east-1';
 
+	let s3: S3Client;
+	let sqs: SQSClient;
+	let ssm: SSMClient;
+
+	const bucketName = 'test-bucket';
+	let queueUrl: string;
+
+	it.beforeAll(async ({ localstack }) => {
+		const clientConfig = {
+			endpoint: localstack.href,
+			region,
+			credentials: {
+				accessKeyId: 'test',
+				secretAccessKey: 'test'
+			}
+		};
+		s3 = new S3Client({ ...clientConfig, forcePathStyle: true });
+		sqs = new SQSClient(clientConfig);
+		ssm = new SSMClient(clientConfig);
+
+		// Create resources in LocalStack for testing
+		await s3.send(new CreateBucketCommand({ Bucket: bucketName }));
+
+		const createQueueResponse = await sqs.send(new CreateQueueCommand({ QueueName: 'test-queue' }));
+		queueUrl = createQueueResponse.QueueUrl!;
+	});
+
+	it.beforeEach(({ localstack }) => {
+		nock.enableNetConnect(localstack.host);
+
+		// Set environment variables for AWS SDK to use LocalStack
+		vi.stubEnv('AWS_ENDPOINT_URL', localstack.href);
+		vi.stubEnv('AWS_REGION', region);
+		vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
+		vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
+		vi.stubEnv('AWS_S3_USE_PATH_STYLE_ENDPOINT', 'true');
+	});
+
+	it('loads config from SSM, initializes Lambda handler, and processes SQS record uploading to S3', async () => {
 		const configPayload = {
 			APP_ID: '123',
 			PRIVATE_KEY: privateKey,
@@ -30,13 +63,13 @@ describe('aws-lambda.ts integration with LocalStack', () => {
 			CLOUDFRONT_DOMAIN: 'assets.example.com',
 			CLOUDFRONT_PRIVATE_KEY: 'key',
 			CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',
-			S3_BUCKET_NAME: fixture.s3BucketName,
-			SQS_QUEUE_URL: fixture.sqsQueueUrl,
+			S3_BUCKET_NAME: bucketName,
+			SQS_QUEUE_URL: queueUrl,
 			ARTIFACT_PATTERNS: 'my-org/my-repo:.github/workflows/ci.yaml:build*',
 			JWT_SECRET: 'jwt-secret'
 		};
 
-		await fixture.ssmClient.send(
+		await ssm.send(
 			new PutParameterCommand({
 				Name: '/presta/config',
 				Value: JSON.stringify(configPayload),
@@ -44,13 +77,7 @@ describe('aws-lambda.ts integration with LocalStack', () => {
 				Overwrite: true
 			})
 		);
-
 		vi.stubEnv('LAMBDA_SSM_PARAMETER_NAME', '/presta/config');
-		vi.stubEnv('AWS_ENDPOINT_URL', fixture.endpoint);
-		vi.stubEnv('AWS_REGION', fixture.region);
-		vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
-		vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
-		vi.stubEnv('AWS_S3_USE_PATH_STYLE_ENDPOINT', 'true');
 
 		const zip = new AdmZip();
 		zip.addFile('index.html', Buffer.from('<html>Integration Test</html>'));
@@ -103,7 +130,7 @@ describe('aws-lambda.ts integration with LocalStack', () => {
 						artifactId: 101
 					}),
 					eventSource: 'aws:sqs',
-					awsRegion: 'us-east-1'
+					awsRegion: region
 				}
 			]
 		};
@@ -112,9 +139,9 @@ describe('aws-lambda.ts integration with LocalStack', () => {
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(commitStatusCreated).toBe(true);
 
-		const s3Object = await fixture.s3Client.send(
+		const s3Object = await s3.send(
 			new GetObjectCommand({
-				Bucket: fixture.s3BucketName,
+				Bucket: bucketName,
 				Key: 'private/my-org/my-repo/12345/build-output-web/index.html'
 			})
 		);
