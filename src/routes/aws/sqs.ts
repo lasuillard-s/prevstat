@@ -12,15 +12,13 @@ import {
 export const router = express.Router();
 export type { BatchItemFailure, SQSEvent, SQSRecord };
 
-let defaultS3Client: S3Client | undefined;
-
 /**
- * Resolves the S3Client from Express locals or creates a default singleton instance.
+ * Resolves the S3Client from Express locals or initializes it on the app instance.
  * @param req Express request object
  * @returns S3Client instance
  */
 function getS3Client(req: Request<Record<string, string>, unknown, SQSEvent>): S3Client {
-	return (req.app.locals.s3Client as S3Client) ?? (defaultS3Client ??= new S3Client({}));
+	return (req.app.locals.s3Client ??= new S3Client());
 }
 
 router.post('/', async (req: Request<Record<string, string>, unknown, SQSEvent>, res: Response) => {
