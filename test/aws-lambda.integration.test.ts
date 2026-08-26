@@ -83,13 +83,13 @@ describe('AWS integration with LocalStack', () => {
 		zip.addFile('index.html', Buffer.from('<html>Integration Test</html>'));
 		const zipBuffer = zip.toBuffer();
 
+		// Mock GitHub API responses
+		let commitStatusCreated = false;
 		nock('https://api.github.com')
 			.post('/app/installations/1234/access_tokens')
-			.reply(201, { token: 'ghs_mocktoken', permissions: {} });
-
-		nock('https://api.github.com').get('/repos/my-org/my-repo').reply(200, { private: true });
-
-		nock('https://api.github.com')
+			.reply(201, { token: 'ghs_mocktoken', permissions: {} })
+			.get('/repos/my-org/my-repo')
+			.reply(200, { private: true })
 			.get('/repos/my-org/my-repo/actions/artifacts/101')
 			.reply(200, {
 				id: 101,
@@ -98,14 +98,9 @@ describe('AWS integration with LocalStack', () => {
 					id: 12345,
 					head_sha: 'abcdef123456'
 				}
-			});
-
-		nock('https://api.github.com')
+			})
 			.get('/repos/my-org/my-repo/actions/artifacts/101/zip')
-			.reply(200, zipBuffer, { 'content-type': 'application/zip' });
-
-		let commitStatusCreated = false;
-		nock('https://api.github.com')
+			.reply(200, zipBuffer, { 'content-type': 'application/zip' })
 			.post('/repos/my-org/my-repo/statuses/abcdef123456', (body) => {
 				expect(body.state).toBe('success');
 				expect(body.target_url).toBe(
