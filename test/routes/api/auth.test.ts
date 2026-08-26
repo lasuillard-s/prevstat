@@ -141,10 +141,10 @@ describe('GET /api/auth router', () => {
 		beforeEach(() => {
 			validState = jwt.sign({ documentUri: validDocumentUri }, appConfig.JWT_SECRET);
 
-			vi.mocked(createOAuthUserAuth).mockReturnValue(async () => ({
+			vi.mocked(createOAuthUserAuth).mockReturnValue((async () => ({
 				token: 'mock-token',
 				authentication: {} as never
-			}));
+			})) as never);
 
 			vi.mocked(getSignedCookies).mockReturnValue({
 				'CloudFront-Key-Pair-Id': 'key-id',
@@ -200,7 +200,7 @@ describe('GET /api/auth router', () => {
 			const mockRequest = vi.fn().mockResolvedValue({
 				data: { permissions: { pull: false } }
 			});
-			Octokit.prototype.request = mockRequest;
+			Octokit.prototype.request = mockRequest as never;
 
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${validState}`);
 			expect(response.status).toBe(403);
@@ -216,7 +216,7 @@ describe('GET /api/auth router', () => {
 			const mockRequest = vi.fn().mockResolvedValue({
 				data: { permissions: { pull: true } }
 			});
-			Octokit.prototype.request = mockRequest;
+			Octokit.prototype.request = mockRequest as never;
 
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${validState}`, {
 				redirect: 'manual'

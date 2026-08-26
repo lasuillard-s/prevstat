@@ -57,7 +57,7 @@ describe('app.ts', () => {
 			}),
 			getNodeMiddleware: vi
 				.fn()
-				.mockResolvedValue((req: unknown, res: unknown, next?: () => void) =>
+				.mockResolvedValue((_req: unknown, _res: unknown, next?: () => void) =>
 					next ? next() : false
 				)
 		} as unknown as Probot;
