@@ -27,7 +27,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest --run",
 		"test:unit": "vitest --run --exclude '**/*.integration.test.ts'",
-		"test:integration": "vitest --run '**/*.integration.test.ts'",
+		"test:integration": "vitest --run integration",
 		"test:watch": "vitest --silent --watch"
 	},
 	"type": "module",
