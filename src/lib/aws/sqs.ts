@@ -105,8 +105,9 @@ export class ArtifactProcessor {
 	constructor(
 		private readonly probot: Probot,
 		private readonly config: AppConfig,
-		private readonly s3Client: S3Client
+		private readonly s3Client?: S3Client
 	) {
+		this.s3Client = s3Client ?? new S3Client();
 		this.uploader = new ArtifactUploader(
 			this.s3Client,
 			this.config.S3_BUCKET_NAME,

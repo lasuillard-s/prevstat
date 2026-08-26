@@ -37,6 +37,13 @@ describe('createApp', () => {
 		expect(app.locals.probot).toBe(probot);
 		expect(app.locals.config).toBe(mockConfig);
 	});
+
+	it('uses custom setupProbot function when provided', async ({ probot }) => {
+		const customSetup = vi.fn();
+		const app = await createApp(mockConfig, probot, customSetup);
+		expect(app).toBeDefined();
+		expect(customSetup).toHaveBeenCalledWith(probot, expect.anything());
+	});
 });
 
 describe('setupProbotApp', () => {
