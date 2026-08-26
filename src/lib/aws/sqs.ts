@@ -100,7 +100,6 @@ export async function submitArtifactProcessingTasks(
  * Worker class that processes SQS records containing GitHub Actions artifact tasks.
  */
 export class ArtifactProcessor {
-	private readonly downloader: ArtifactDownloader;
 	private readonly uploader: ArtifactUploader;
 
 	constructor(
@@ -108,7 +107,6 @@ export class ArtifactProcessor {
 		private readonly config: AppConfig,
 		private readonly s3Client: S3Client
 	) {
-		this.downloader = new ArtifactDownloader(this.probot);
 		this.uploader = new ArtifactUploader(
 			this.s3Client,
 			this.config.S3_BUCKET_NAME,
@@ -160,8 +158,10 @@ export class ArtifactProcessor {
 		);
 		const targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
 
+		const downloader = new ArtifactDownloader(octokit);
+
 		try {
-			const zipBuffer = await this.downloader.download(owner, repo, artifact.id, installationId);
+			const zipBuffer = await downloader.download(owner, repo, artifact.id);
 			await this.uploader.upload(zipBuffer, {
 				artifactName: artifact.name,
 				visibility,

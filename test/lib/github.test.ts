@@ -8,9 +8,7 @@ import {
 import { test as it } from '../helpers.js';
 
 describe('ArtifactDownloader', () => {
-	it('downloads and returns artifact zip buffer on success with installationId', async ({
-		probot
-	}) => {
+	it('downloads and returns artifact zip buffer on success', async () => {
 		const mockOctokit = {
 			rest: {
 				actions: {
@@ -20,12 +18,10 @@ describe('ArtifactDownloader', () => {
 				}
 			}
 		};
-		const authSpy = vi.spyOn(probot, 'auth').mockResolvedValue(mockOctokit as never);
 
-		const downloader = new ArtifactDownloader(probot);
-		const result = await downloader.download('owner', 'repo', 101, 1234);
+		const downloader = new ArtifactDownloader(mockOctokit as never);
+		const result = await downloader.download('owner', 'repo', 101);
 
-		expect(authSpy).toHaveBeenCalledWith(1234);
 		expect(mockOctokit.rest.actions.downloadArtifact).toHaveBeenCalledWith({
 			owner: 'owner',
 			repo: 'repo',
@@ -35,26 +31,7 @@ describe('ArtifactDownloader', () => {
 		expect(result).toEqual(Buffer.from([1, 2, 3]));
 	});
 
-	it('downloads without installationId using default app auth', async ({ probot }) => {
-		const mockOctokit = {
-			rest: {
-				actions: {
-					downloadArtifact: vi.fn().mockResolvedValue({
-						data: new Uint8Array([4, 5, 6]).buffer
-					})
-				}
-			}
-		};
-		const authSpy = vi.spyOn(probot, 'auth').mockResolvedValue(mockOctokit as never);
-
-		const downloader = new ArtifactDownloader(probot);
-		const result = await downloader.download('owner', 'repo', 202);
-
-		expect(authSpy).toHaveBeenCalledWith();
-		expect(result).toEqual(Buffer.from([4, 5, 6]));
-	});
-
-	it('throws error on failure', async ({ probot }) => {
+	it('throws error on failure', async () => {
 		const mockOctokit = {
 			rest: {
 				actions: {
@@ -62,9 +39,8 @@ describe('ArtifactDownloader', () => {
 				}
 			}
 		};
-		vi.spyOn(probot, 'auth').mockResolvedValue(mockOctokit as never);
 
-		const downloader = new ArtifactDownloader(probot);
+		const downloader = new ArtifactDownloader(mockOctokit as never);
 		await expect(downloader.download('owner', 'repo', 101)).rejects.toThrow('Network error');
 	});
 });

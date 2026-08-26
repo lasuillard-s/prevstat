@@ -9,27 +9,17 @@ import { buildArtifactPath } from './url.js';
  * Downloads GitHub Actions workflow artifacts.
  */
 export class ArtifactDownloader {
-	constructor(private readonly probot: Probot) {}
+	constructor(private readonly octokit: ProbotOctokit) {}
 
 	/**
 	 * Downloads an artifact zip archive from GitHub.
 	 * @param owner Repository owner
 	 * @param repo Repository name
 	 * @param artifactId GitHub artifact ID
-	 * @param installationId Optional GitHub App installation ID
 	 * @returns Buffer containing the downloaded zip archive
 	 */
-	async download(
-		owner: string,
-		repo: string,
-		artifactId: number,
-		installationId?: number
-	): Promise<Buffer> {
-		const octokit = (
-			installationId ? await this.probot.auth(installationId) : await this.probot.auth()
-		) as ProbotOctokit;
-
-		const download = await octokit.rest.actions.downloadArtifact({
+	async download(owner: string, repo: string, artifactId: number): Promise<Buffer> {
+		const download = await this.octokit.rest.actions.downloadArtifact({
 			owner,
 			repo,
 			artifact_id: artifactId,
