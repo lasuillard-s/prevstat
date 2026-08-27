@@ -27,7 +27,7 @@
             just
             nodejs_24
             ngrok
-            opentofu
+            terraform
             awscli2
           ];
           shellHook = ''

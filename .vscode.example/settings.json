@@ -2,11 +2,11 @@
 	"[json][jsonc][yaml]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
-	"[opentofu][opentofu-vars]": {
-		"editor.defaultFormatter": "opentofu.vscode-opentofu"
+	"[terraform][terraform-vars]": {
+		"editor.defaultFormatter": "HashiCorp.terraform"
 	},
 	"editor.defaultFormatter": "esbenp.prettier-vscode",
 	"files.associations": {
-		"**/*.tfvars.example": "opentofu-vars"
+		"**/*.tfvars.example": "terraform-vars"
 	}
 }
