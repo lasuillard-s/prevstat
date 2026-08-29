@@ -36,5 +36,5 @@ export async function createApp(): Promise<express.Express> {
 
 // Probot app entrypoint
 const appFn: ApplicationFunction = (app) => {
-	app.log.info('Presta app is running');
+	app.log.info('Prevstat app is running');
 };

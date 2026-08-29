@@ -1,10 +1,10 @@
 # ❤️‍🔥 Contributing to this project
 
-Thank you for your interest in contributing to **Presta**.
+Thank you for your interest in contributing to **Prevstat**.
 
 ## 🐛 Reporting issues
 
-Please report issues in our [GitHub repository](https://github.com/lasuillard-s/presta/issues). Before submitting an issue, search for existing issues to avoid duplicates.
+Please report issues in our [GitHub repository](https://github.com/lasuillard-s/prevstat/issues). Before submitting an issue, search for existing issues to avoid duplicates.
 
 ## 🏗️ Project overview
 

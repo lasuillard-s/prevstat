@@ -1,20 +1,20 @@
 {
-	"name": "presta",
+	"name": "prevstat",
 	"private": true,
 	"readme": "README.md",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/lasuillard-s/presta.git"
+		"url": "git+https://github.com/lasuillard-s/prevstat.git"
 	},
 	"author": {
 		"name": "Yuchan Lee",
 		"url": "https://github.com/lasuillard",
 		"email": "lasuillard@gmail.com"
 	},
-	"homepage": "https://github.com/lasuillard-s/presta",
+	"homepage": "https://github.com/lasuillard-s/prevstat",
 	"bugs": {
-		"url": "https://github.com/lasuillard-s/presta/issues"
+		"url": "https://github.com/lasuillard-s/prevstat/issues"
 	},
 	"scripts": {
 		"dev": "tsc; node ./dist/src/main.js",

@@ -1,7 +1,7 @@
 variable "app_name" {
   type        = string
   description = "Application name"
-  default     = "presta"
+  default     = "prevstat"
 }
 
 variable "app_id" {
