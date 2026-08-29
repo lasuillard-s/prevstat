@@ -1,8 +1,8 @@
 provider "aws" {
   default_tags {
     tags = {
-      Project = "presta"
-      Source  = "https://github.com/lasuillard-s/presta.git"
+      Project = "prevstat"
+      Source  = "https://github.com/lasuillard-s/prevstat.git"
     }
   }
 }

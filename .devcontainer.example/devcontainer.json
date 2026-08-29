@@ -1,5 +1,5 @@
 {
-	"name": "lasuillard-s/presta",
+	"name": "lasuillard-s/prevstat",
 	"image": "mcr.microsoft.com/devcontainers/base:dev-trixie",
 	"features": {
 		"ghcr.io/devcontainers/features/nix:1": {
