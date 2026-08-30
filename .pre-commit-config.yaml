@@ -38,4 +38,4 @@ repos:
         language: system
         types_or: [javascript, ts]
         pass_filenames: false
-        entry: npm run test
+        entry: npm run test:unit
