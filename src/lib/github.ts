@@ -61,15 +61,17 @@ export class ArtifactUploader {
 		const zip = new AdmZip(zipBuffer);
 		const zipEntries = zip.getEntries();
 
-		const uploadPromises = zipEntries.map(async (entry) => {
-			if (entry.isDirectory) return;
+		const uploadTasks: Array<() => Promise<void>> = [];
+
+		for (const entry of zipEntries) {
+			if (entry.isDirectory) continue;
 
 			const safeEntryName = sanitizeZipEntryPath(entry.entryName);
 			if (!safeEntryName) {
 				this.log?.warn(
 					`Skipping unsafe or invalid zip entry path: "${entry.entryName}" in artifact ${artifactName}`
 				);
-				return;
+				continue;
 			}
 
 			const path = buildArtifactPath(
@@ -83,17 +85,22 @@ export class ArtifactUploader {
 			const s3Key = path.startsWith('/') ? path.substring(1) : path;
 			const contentType = mime.lookup(safeEntryName) || 'application/octet-stream';
 
-			await this.s3Client.send(
-				new PutObjectCommand({
-					Bucket: this.bucketName,
-					Key: s3Key,
-					Body: entry.getData(),
-					ContentType: contentType
-				})
-			);
-		});
+			uploadTasks.push(async () => {
+				await this.s3Client.send(
+					new PutObjectCommand({
+						Bucket: this.bucketName,
+						Key: s3Key,
+						Body: entry.getData(),
+						ContentType: contentType
+					})
+				);
+			});
+		}
 
-		await Promise.all(uploadPromises);
+		const chunkSize = 50;
+		for (let i = 0; i < uploadTasks.length; i += chunkSize) {
+			await Promise.all(uploadTasks.slice(i, i + chunkSize).map((task) => task()));
+		}
 	}
 }
 

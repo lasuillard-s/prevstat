@@ -22,9 +22,8 @@ router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string 
 	}
 
 	// Prepare parameters for login redirection
-	const proto = req.protocol;
-	const host = config.CLOUDFRONT_DOMAIN;
-	const redirectUri = new URL('/api/auth/callback', `${proto}://${host}`);
+	const host = config.CLOUDFRONT_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+	const redirectUri = new URL('/api/auth/callback', `https://${host}`);
 	const state = encryptState(
 		{
 			documentUri: documentUri

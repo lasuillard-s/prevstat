@@ -107,7 +107,9 @@ describe('GET /api/auth router', () => {
 			expect(location.origin).toBe('https://github.com');
 			expect(location.pathname).toBe('/login/oauth/authorize');
 			expect(location.searchParams.get('client_id')).toBe(appConfig.GITHUB_CLIENT_ID);
-			expect(location.searchParams.get('redirect_uri')).toMatch(/^http.*\/api\/auth\/callback$/);
+			expect(location.searchParams.get('redirect_uri')).toBe(
+				'https://assets.example.com/api/auth/callback'
+			);
 
 			const state = location.searchParams.get('state');
 			expect(state).toBeTruthy();
@@ -116,6 +118,22 @@ describe('GET /api/auth router', () => {
 			const decoded = jwt.verify(state!, appConfig.JWT_SECRET) as jwt.JwtPayload;
 			expect(decoded.documentUri).toBe(
 				'https://assets.example.com/private/my-org/my-repo/index.html'
+			);
+		});
+
+		it('normalizes CLOUDFRONT_DOMAIN if it contains scheme or trailing slash', async () => {
+			appConfig.CLOUDFRONT_DOMAIN = 'https://assets.example.com/';
+			const redirectUri = encodeURIComponent(
+				'https://assets.example.com/private/my-org/my-repo/index.html'
+			);
+			const response = await fetch(`${serverUrl}/api/auth?redirect_uri=${redirectUri}`, {
+				redirect: 'manual'
+			});
+
+			expect(response.status).toBe(302);
+			const location = new URL(response.headers.get('location')!);
+			expect(location.searchParams.get('redirect_uri')).toBe(
+				'https://assets.example.com/api/auth/callback'
 			);
 		});
 	});

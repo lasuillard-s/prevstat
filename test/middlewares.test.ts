@@ -138,6 +138,13 @@ describe('getAwsSource', () => {
 		expect(getAwsSource(event)).toBe('aws:sqs');
 	});
 
+	it('returns "aws:sqs" when event contains SQS records even if not the first record', () => {
+		const event = {
+			Records: [{ eventSource: 'other' }, { eventSource: 'aws:sqs', body: '{}' }]
+		};
+		expect(getAwsSource(event)).toBe('aws:sqs');
+	});
+
 	it('returns null for non-SQS records or non-AWS events', () => {
 		expect(getAwsSource(null)).toBeNull();
 		expect(getAwsSource(undefined)).toBeNull();

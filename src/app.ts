@@ -25,7 +25,7 @@ export async function createApp(
 		try {
 			config = AppConfig.parse(process.env);
 		} catch (error) {
-			probot.log.error(`Failed to load configuration: ${error}`);
+			probot.log.error(error, 'Failed to load configuration');
 			process.exit(1);
 		}
 	}

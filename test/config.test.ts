@@ -80,6 +80,32 @@ describe('AppConfig', () => {
 		expect(config.ARTIFACT_PATTERNS).toEqual(['owner/repo:*:artifact', 'another/repo:*:*']);
 	});
 
+	it('supports newline separated ARTIFACT_PATTERNS', () => {
+		// Arrange
+		vi.stubEnv('GITHUB_CLIENT_ID', 'test-client-id');
+		vi.stubEnv('GITHUB_CLIENT_SECRET', 'test-client-secret');
+		vi.stubEnv('CLOUDFRONT_DOMAIN', 'test.cloudfront.net');
+		vi.stubEnv('CLOUDFRONT_PRIVATE_KEY', 'test-private-key');
+		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'test-key-pair-id');
+		vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
+		vi.stubEnv('S3_BUCKET_NAME', 'test-bucket');
+		vi.stubEnv('SQS_QUEUE_URL', 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue');
+		vi.stubEnv(
+			'ARTIFACT_PATTERNS',
+			'owner/repo:*:artifact\nanother/repo:*:*\r\nthird/repo:.github/workflows/ci.yaml:*'
+		);
+
+		// Act
+		const config = AppConfig.parse(process.env);
+
+		// Assert
+		expect(config.ARTIFACT_PATTERNS).toEqual([
+			'owner/repo:*:artifact',
+			'another/repo:*:*',
+			'third/repo:.github/workflows/ci.yaml:*'
+		]);
+	});
+
 	it('throws an error when required configuration is missing', () => {
 		expect(() => AppConfig.parse({})).toThrow();
 	});

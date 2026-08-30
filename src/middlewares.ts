@@ -15,7 +15,7 @@ export function getAwsSource(event: unknown): 'aws:sqs' | null {
 
 	if ('Records' in event && Array.isArray((event as { Records: unknown[] }).Records)) {
 		const records = (event as { Records: Array<{ eventSource?: string }> }).Records;
-		if (records.length > 0 && records[0]?.eventSource === 'aws:sqs') {
+		if (records.some((record) => record?.eventSource === 'aws:sqs')) {
 			return 'aws:sqs';
 		}
 	}

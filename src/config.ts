@@ -6,7 +6,7 @@ export const AppConfig = z.object({
 	// AWS related configuration
 	CLOUDFRONT_DOMAIN: z
 		.string()
-		.describe('CloudFront domain name for the app (e.g. https://blabblah.cloudfront.net)'),
+		.describe('CloudFront domain name for the app (e.g. blabblah.cloudfront.net)'),
 	CLOUDFRONT_PRIVATE_KEY: z.string().describe('CloudFront private key for the cookie signing'),
 	CLOUDFRONT_KEY_PAIR_ID: z.string().describe('CloudFront key pair ID for the cookie signing'),
 	CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: z
@@ -36,11 +36,11 @@ export const AppConfig = z.object({
 	ARTIFACT_PATTERNS: z
 		.string()
 		.describe(
-			'Comma separated list of artifact glob patterns. Format: owner/repo:workflow_path:artifact (e.g. owner/repo:.github/workflows/ci.yaml:artifact)'
+			'Comma or newline separated list of artifact glob patterns. Format: owner/repo:workflow_path:artifact (e.g. owner/repo:.github/workflows/ci.yaml:artifact)'
 		)
 		.transform((val) =>
 			val
-				.split(',')
+				.split(/[\r\n,]+/)
 				.map((s) => s.trim())
 				.filter(Boolean)
 		)

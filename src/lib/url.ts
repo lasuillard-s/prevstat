@@ -19,7 +19,7 @@ export function buildRepositoryBasePath(visibility: string, owner: string, repo:
  * @param repo The repository name
  * @param workflowRunId The workflow run ID
  * @param artifactName The artifact name
- * @param filePath The file path inside the artifact
+ * @param filePath The file path inside the artifact. Must be a sanitized relative path (e.g. no '..' traversal segments).
  * @returns The safely built URL path, starting with a slash
  */
 export function buildArtifactPath(
