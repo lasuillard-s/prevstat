@@ -196,7 +196,7 @@ describe('POST /aws/sqs router', () => {
 			target_url:
 				'https://assets.example.com/private/my-org/my-repo/12345/build-output-web/index.html',
 			description: 'Successfully uploaded artifact build-output-web to S3.',
-			context: 'Presta / build-output-web'
+			context: 'Prevstat / build-output-web'
 		});
 		expect(mockOctokit.rest.checks.create).not.toHaveBeenCalled();
 	});

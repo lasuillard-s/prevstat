@@ -212,6 +212,17 @@ module "s3_bucket" {
   versioning = {
     enabled = false
   }
+
+  lifecycle_rule = [
+    {
+      id      = "delete-objects-after-7-days"
+      enabled = true
+
+      expiration = {
+        days = 7
+      }
+    }
+  ]
 }
 
 resource "aws_s3_object" "error_403" {

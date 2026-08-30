@@ -77,13 +77,13 @@ describe('AWS integration with LocalStack', () => {
 
 		await ssm.send(
 			new PutParameterCommand({
-				Name: '/presta/config',
+				Name: '/prevstat/config',
 				Value: JSON.stringify(configPayload),
 				Type: 'String',
 				Overwrite: true
 			})
 		);
-		vi.stubEnv('LAMBDA_SSM_PARAMETER_NAME', '/presta/config');
+		vi.stubEnv('LAMBDA_SSM_PARAMETER_NAME', '/prevstat/config');
 
 		const zip = new AdmZip();
 		zip.addFile('index.html', Buffer.from('<html>Integration Test</html>'));

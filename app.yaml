@@ -11,10 +11,10 @@
 # https://developer.github.com/apps/building-github-apps/creating-github-apps-from-a-manifest/
 
 # The name of the GitHub App. Defaults to the name specified in package.json
-name: Presta
+name: Prevstat
 
 # The homepage of your GitHub App.
-url: https://github.com/lasuillard-s/presta
+url: https://github.com/lasuillard-s/prevstat
 
 # A description of the GitHub App.
 description: PREview any STAtic assets in your browser, instantly and securely.

@@ -7,7 +7,7 @@ variable "github_api_base_url" {
 variable "app_name" {
   type        = string
   description = "Application name"
-  default     = "presta"
+  default     = "prevstat"
 }
 
 variable "app_slug" {

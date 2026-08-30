@@ -180,7 +180,7 @@ export class ArtifactProcessor {
 				await octokit.rest.checks.create({
 					owner,
 					repo,
-					name: `Presta / ${artifact.name}`,
+					name: `Prevstat / ${artifact.name}`,
 					head_sha: headSha,
 					status: 'completed',
 					conclusion: 'failure',
@@ -202,7 +202,7 @@ export class ArtifactProcessor {
 				state: 'success',
 				target_url: targetUrl,
 				description: `Successfully uploaded artifact ${artifact.name} to S3.`,
-				context: `Presta / ${artifact.name}`
+				context: `Prevstat / ${artifact.name}`
 			});
 		}
 	}
