@@ -31,5 +31,11 @@ const app = await (async function () {
 	return createApp();
 })();
 
+// https://github.com/CodeGenieApp/serverless-express
 // @ts-expect-error Library not properly typed
-export const handler = serverlessExpress({ app });
+export const handler = serverlessExpress({
+	app,
+	eventSourceRoutes: {
+		AWS_SQS: '/aws/sqs'
+	}
+});

@@ -5,6 +5,6 @@ const port: number = process.env.PORT ? Number.parseInt(process.env.PORT) : 3000
 
 const app = await createApp();
 
-app.listen(port, host, () => {
+export default app.listen(port, host, () => {
 	app.locals.probot.log.info(`Prevstat is listening on ${host}:${port}`);
 });

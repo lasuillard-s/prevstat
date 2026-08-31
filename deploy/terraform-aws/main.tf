@@ -40,6 +40,10 @@ resource "random_password" "jwt_secret" {
   length = 32
 }
 
+resource "random_password" "x_origin_verify" {
+  length = 32
+}
+
 resource "aws_ssm_parameter" "lambda_app_config" {
   name = local.lambda_app_config_name
   type = "SecureString"
@@ -56,13 +60,18 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "CLOUDFRONT_PRIVATE_KEY" : tls_private_key.private_key.private_key_pem,
       "CLOUDFRONT_KEY_PAIR_ID" : aws_cloudfront_public_key.public_key.id,
       "JWT_SECRET" : random_password.jwt_secret.result,
+      "S3_BUCKET_NAME" : module.s3_bucket.s3_bucket_id,
+      "SQS_QUEUE_URL" : module.sqs.queue_url,
+      "ORIGIN_VERIFY_SECRET" : random_password.x_origin_verify.result,
+      "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
-    var.secret_variables
+    var.secret_variables // User-provided secrets will OVERRIDE
   ))
 }
 
 data "aws_iam_policy_document" "lambda_function" {
   statement {
+    sid = "AllowLambdaToReadSSMParameter"
     actions = [
       "ssm:GetParameter"
     ]
@@ -74,11 +83,35 @@ data "aws_iam_policy_document" "lambda_function" {
   }
 
   statement {
+    sid = "AllowLambdaToDecryptSSMParameter"
     actions = [
       "kms:Decrypt"
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
+    ]
+  }
+
+  statement {
+    sid = "AllowLambdaToProcessSQSMessage"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:SendMessage"
+    ]
+    resources = [
+      module.sqs.queue_arn
+    ]
+  }
+
+  statement {
+    sid = "AllowLambdaToUploadArtifactsToS3"
+    actions = [
+      "s3:PutObject"
+    ]
+    resources = [
+      "${module.s3_bucket.s3_bucket_arn}/*"
     ]
   }
 }
@@ -98,25 +131,45 @@ module "lambda_function" {
   local_existing_package  = data.archive_file.dist.output_path
   ignore_source_code_hash = false
 
-  timeout = 30
-  environment_variables = merge(
-    var.variables,
-    {
-      // Probot
-      "APP_ID" : var.app_id,
-      "PRIVATE_KEY" : var.private_key,
-      "WEBHOOK_SECRET" : var.webhook_secret,
-      "GITHUB_CLIENT_ID" : var.github_client_id,
-      "GITHUB_CLIENT_SECRET" : var.github_client_secret,
-      // App
-      "LAMBDA_SSM_PARAMETER_NAME" : local.lambda_app_config_name,
-    }
-  )
-
   attach_policy_json = true
   policy_json        = data.aws_iam_policy_document.lambda_function.json
 
+  environment_variables = merge(
+    {
+      "LAMBDA_SSM_PARAMETER_NAME" : local.lambda_app_config_name,
+    },
+    var.variables, // User-provided variables will OVERRIDE
+  )
+
+  timeout = 60
+
+  // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
+
+  cloudwatch_logs_retention_in_days = 1
+
+  event_source_mapping = {
+    sqs = {
+      event_source_arn                   = module.sqs.queue_arn
+      function_response_types            = ["ReportBatchItemFailures"]
+      batch_size                         = 5
+      maximum_batching_window_in_seconds = 10
+
+      scaling_config = {
+        maximum_concurrency = 3
+      }
+    }
+  }
+}
+
+module "sqs" {
+  source  = "terraform-aws-modules/sqs/aws"
+  version = "~> 5.0"
+
+  name = "${var.app_name}-queue"
+
+  fifo_queue                 = false
+  visibility_timeout_seconds = 300 # 5x of Lambda timeout
 }
 
 data "aws_iam_policy_document" "for_cloudfront" {
@@ -224,6 +277,9 @@ module "cdn" {
         origin_protocol_policy = "https-only"
         origin_ssl_protocols   = ["TLSv1.2"]
       }
+      custom_header = {
+        "X-Origin-Verify" : sensitive(random_password.x_origin_verify.result)
+      }
     }
   }
 
@@ -236,15 +292,6 @@ module "cdn" {
     }
   }
 
-  cloudfront_functions = {
-    "viewer-request" = {
-      runtime = "cloudfront-js-2.0"
-      comment = "Viewer request function for ${var.app_name} app."
-      code    = file("${path.module}/cloudfront-functions/viewer-request.js")
-      publish = true
-    }
-  }
-
   # Public documents (evaluated at last)
   default_cache_behavior = {
     target_origin_id       = "s3_bucket"
@@ -252,13 +299,6 @@ module "cdn" {
     cached_methods         = ["GET", "HEAD"]
     viewer_protocol_policy = "redirect-to-https"
     cache_policy_name      = "Managed-CachingOptimized"
-
-    function_association = {
-      "viewer-request" = {
-        function_key = "viewer-request"
-      }
-    }
-
   }
 
   ordered_cache_behavior = [
@@ -281,12 +321,6 @@ module "cdn" {
       trusted_key_groups     = [aws_cloudfront_key_group.default.id]
       viewer_protocol_policy = "redirect-to-https"
       cache_policy_name      = "Managed-CachingOptimized"
-
-      function_association = {
-        "viewer-request" = {
-          function_key = "viewer-request"
-        }
-      }
     },
   ]
 

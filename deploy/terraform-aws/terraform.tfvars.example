@@ -1,4 +1,6 @@
+app_slug             = "pre-sta"
 app_id               = "0000000"
+app_installation_id  = "0000000"
 private_key          = <<EOF
 -----BEGIN RSA PRIVATE KEY-----
 blahblah
@@ -7,3 +9,4 @@ EOF
 webhook_secret       = "your-webhook-secret"
 github_client_id     = "your-github-app-client-id"
 github_client_secret = "your-github-app-client-secret"
+artifact_patterns    = "owner/repo:.github/workflows/ci.yaml:artifact"

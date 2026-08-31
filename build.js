@@ -18,5 +18,10 @@ await esbuild.build({
 		// Workaround for 'Error: Dynamic require of "node:path" is not supported';
 		// https://github.com/aws/aws-sam-cli/issues/4827
 		js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`
-	}
+	},
+	external: [
+		// Included in Lambda Node.js runtime by default
+		// https://docs.aws.amazon.com/lambda/latest/dg/lambda-nodejs.html
+		'@aws-sdk/*'
+	]
 });

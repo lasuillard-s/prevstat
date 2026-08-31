@@ -21,6 +21,10 @@ This project uses the following tech stack:
 ### 📂 Key directory structure
 
 - `src/`: Application source code
+- `src/event-handlers/`: Event handlers for GitHub webhook events
+- `src/routes/api`: API routes such as authentication to issue signed cookies for CloudFront
+- `src/routes/aws`: AWS-related internal routes such as background tasks for processing artifacts
+- `src/lib/`: Utility functions and libraries
 - `test/`: Unit tests and fixtures
 - `app.yaml`: GitHub App manifest
 - `flake.nix`: Nix Flake configuration for the development environment
@@ -29,6 +33,9 @@ This project uses the following tech stack:
 ## 🔧 Set up the development environment
 
 This repository uses `nix` to manage dependencies and development tools. Run `nix develop` to set up a local development environment, then run `just install` to install dependencies.
+
+> [!NOTE]
+> You will need Docker to run the tests. This is not installed via `nix` because it requires root privileges. Please install it separately.
 
 If you prefer a Dev Container, an example configuration is available in [.devcontainer.example/devcontainer.json](.devcontainer.example/devcontainer.json). Copy it to `.devcontainer/devcontainer.json` to use it locally.
 
