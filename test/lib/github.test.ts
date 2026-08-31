@@ -1,47 +1,126 @@
 import AdmZip from 'adm-zip';
-import { describe, expect, vi } from 'vitest';
+import nock from 'nock';
+import type { Context } from 'probot';
+import { ProbotOctokit } from 'probot';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	ArtifactDownloader,
 	ArtifactUploader,
+	Repo,
 	sanitizeZipEntryPath
 } from '../../src/lib/github.js';
-import { test as it } from '../helpers.js';
+
+describe('Repo', () => {
+	it('instantiates and provides owner and repo', () => {
+		const repo = new Repo('my-org', 'my-repo');
+		expect(repo.owner).toBe('my-org');
+		expect(repo.repo).toBe('my-repo');
+		expect(repo.toString()).toBe('my-org/my-repo');
+	});
+
+	it('creates from full name', () => {
+		const repo = Repo.fromFullName('my-org/my-repo');
+		expect(repo.owner).toBe('my-org');
+		expect(repo.repo).toBe('my-repo');
+	});
+
+	it('throws for invalid full name', () => {
+		expect(() => Repo.fromFullName('invalid')).toThrow('Invalid repository full name');
+	});
+
+	it('creates from Probot Context', () => {
+		const mockContext = {
+			repo: () => ({ owner: 'context-org', repo: 'context-repo' })
+		} as unknown as Context;
+		const repo = Repo.fromContext(mockContext);
+		expect(repo.owner).toBe('context-org');
+		expect(repo.repo).toBe('context-repo');
+	});
+
+	it('checks equality with another Repo', () => {
+		const repo1 = new Repo('owner', 'repo');
+		const repo2 = new Repo('owner', 'repo');
+		const repo3 = new Repo('owner', 'other-repo');
+		expect(repo1.equals(repo2)).toBe(true);
+		expect(repo1.equals(repo3)).toBe(false);
+	});
+
+	describe('fromUrl', () => {
+		it('parses owner and repo from a complete artifact URL', () => {
+			const repo = Repo.fromUrl(
+				'https://assets.example.com/private/my-org/my-repo/123/build-output/index.html'
+			);
+			expect(repo.owner).toBe('my-org');
+			expect(repo.repo).toBe('my-repo');
+		});
+
+		it('parses URL-encoded owner and repo correctly', () => {
+			const repo = Repo.fromUrl(
+				'https://assets.example.com/private/my%2Dorg/my%2Drepo/123/build-output/sub/dir/index.html'
+			);
+			expect(repo.owner).toBe('my-org');
+			expect(repo.repo).toBe('my-repo');
+		});
+
+		it('throws an error for incomplete path patterns', () => {
+			expect(() =>
+				Repo.fromUrl('https://assets.example.com/private/my-org/my-repo/123/build-output')
+			).toThrow('Incomplete artifact path in URL');
+
+			expect(() => Repo.fromUrl('https://assets.example.com/private/my-org/my-repo/123')).toThrow(
+				'Incomplete artifact path in URL'
+			);
+
+			expect(() => Repo.fromUrl('https://assets.example.com/private/my-org/my-repo')).toThrow(
+				'Incomplete artifact path in URL'
+			);
+
+			expect(() => Repo.fromUrl('https://assets.example.com/private/my-org')).toThrow(
+				'Incomplete artifact path in URL'
+			);
+		});
+
+		it('throws an error if any required component is empty', () => {
+			expect(() =>
+				Repo.fromUrl('https://assets.example.com/private//my-repo/123/build-output/index.html')
+			).toThrow('Missing required path components in URL');
+		});
+
+		it('throws an error for invalid URL string', () => {
+			expect(() => Repo.fromUrl('invalid-url')).toThrow();
+		});
+	});
+});
 
 describe('ArtifactDownloader', () => {
-	it('downloads and returns artifact zip buffer on success', async () => {
-		const mockOctokit = {
-			rest: {
-				actions: {
-					downloadArtifact: vi.fn().mockResolvedValue({
-						data: new Uint8Array([1, 2, 3]).buffer
-					})
-				}
-			}
-		};
+	const octokit = new ProbotOctokit({
+		auth: 'mock-token',
+		retry: { enabled: false },
+		throttle: { enabled: false }
+	});
 
-		const downloader = new ArtifactDownloader(mockOctokit as never);
+	it('downloads and returns artifact zip buffer on success', async () => {
+		const mock = nock('https://api.github.com')
+			.get('/repos/owner/repo/actions/artifacts/101/zip')
+			.reply(200, Buffer.from([1, 2, 3]));
+
+		const downloader = new ArtifactDownloader(octokit);
 		const result = await downloader.download('owner', 'repo', 101);
 
-		expect(mockOctokit.rest.actions.downloadArtifact).toHaveBeenCalledWith({
-			owner: 'owner',
-			repo: 'repo',
-			artifact_id: 101,
-			archive_format: 'zip'
-		});
 		expect(result).toEqual(Buffer.from([1, 2, 3]));
+		expect(mock.isDone()).toBe(true);
+		expect(mock.pendingMocks()).toStrictEqual([]);
 	});
 
 	it('throws error on failure', async () => {
-		const mockOctokit = {
-			rest: {
-				actions: {
-					downloadArtifact: vi.fn().mockRejectedValue(new Error('Network error'))
-				}
-			}
-		};
+		const mock = nock('https://api.github.com')
+			.get('/repos/owner/repo/actions/artifacts/101/zip')
+			.reply(500, 'Server Error');
 
-		const downloader = new ArtifactDownloader(mockOctokit as never);
-		await expect(downloader.download('owner', 'repo', 101)).rejects.toThrow('Network error');
+		const downloader = new ArtifactDownloader(octokit);
+		await expect(downloader.download('owner', 'repo', 101)).rejects.toThrow();
+		expect(mock.isDone()).toBe(true);
+		expect(mock.pendingMocks()).toStrictEqual([]);
 	});
 });
 

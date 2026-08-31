@@ -3,8 +3,7 @@ import type { AppConfig } from '../../src/config.js';
 import {
 	buildArtifactPath,
 	buildRepositoryBasePath,
-	isValidDocumentUri,
-	parseRepoFromUrl
+	isValidDocumentUri
 } from '../../src/lib/url.js';
 
 describe('buildRepositoryBasePath', () => {
@@ -30,54 +29,6 @@ describe('buildArtifactPath', () => {
 		expect(
 			buildArtifactPath('private', 'owner/name', 'repo', 123, 'artifact/name', '../etc/passwd')
 		).toBe('/private/owner%2Fname/repo/123/artifact%2Fname/../etc/passwd');
-	});
-});
-
-describe('parseRepoFromUrl', () => {
-	it('parses owner and repo from a complete artifact URL', () => {
-		const result = parseRepoFromUrl(
-			'https://assets.example.com/private/my-org/my-repo/123/build-output/index.html'
-		);
-		expect(result).toEqual({ owner: 'my-org', repo: 'my-repo' });
-	});
-
-	it('parses URL-encoded owner and repo correctly', () => {
-		const result = parseRepoFromUrl(
-			'https://assets.example.com/private/my%2Dorg/my%2Drepo/123/build-output/sub/dir/index.html'
-		);
-		expect(result).toEqual({ owner: 'my-org', repo: 'my-repo' });
-	});
-
-	it('throws an error for incomplete path patterns', () => {
-		// Missing filePath
-		expect(() =>
-			parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo/123/build-output')
-		).toThrow('Incomplete artifact path in URL');
-
-		// Missing artifactName
-		expect(() => parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo/123')).toThrow(
-			'Incomplete artifact path in URL'
-		);
-
-		// Missing workflowRunId
-		expect(() => parseRepoFromUrl('https://assets.example.com/private/my-org/my-repo')).toThrow(
-			'Incomplete artifact path in URL'
-		);
-
-		// Missing repo
-		expect(() => parseRepoFromUrl('https://assets.example.com/private/my-org')).toThrow(
-			'Incomplete artifact path in URL'
-		);
-	});
-
-	it('throws an error if any required component is empty', () => {
-		expect(() =>
-			parseRepoFromUrl('https://assets.example.com/private//my-repo/123/build-output/index.html')
-		).toThrow('Missing required path components in URL');
-	});
-
-	it('throws an error for invalid URL string', () => {
-		expect(() => parseRepoFromUrl('invalid-url')).toThrow();
 	});
 });
 

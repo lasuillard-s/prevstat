@@ -46,7 +46,7 @@ export function buildArtifactPath(
 export function isValidDocumentUri(uri: string, config: Readonly<AppConfig>): boolean {
 	try {
 		const parsedUrl = new URL(uri);
-		const expectedHost = config.CLOUDFRONT_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+		const expectedHost = config.CLOUDFRONT_DOMAIN;
 		if (parsedUrl.host !== expectedHost) {
 			return false;
 		}
@@ -57,37 +57,4 @@ export function isValidDocumentUri(uri: string, config: Readonly<AppConfig>): bo
 	} catch {
 		return false;
 	}
-}
-
-/**
- * Parses the repository owner and name from an artifact document URL.
- * URL path must strictly match `/<visibility>/<owner>/<repo>/<workflowRunId>/<artifactName>/<filePath>`.
- * Throws an error if the URL is invalid or if any path component is missing.
- * @param url The artifact document URL
- * @returns The parsed repository owner and name
- */
-export function parseRepoFromUrl(url: string): { owner: string; repo: string } {
-	const parsedUrl = new URL(url);
-	const parts = parsedUrl.pathname.split('/');
-
-	// Expect ['', visibility, owner, repo, workflowRunId, artifactName, ...filePathParts]
-	if (parts.length < 7) {
-		throw new Error(`Incomplete artifact path in URL: ${url}`);
-	}
-
-	// Extract the required components from the URL path
-	const [, visibility, owner, repo, workflowRunId, artifactName, ...filePathParts] = parts;
-	const filePath = filePathParts.join('/');
-
-	// Validate that all required components are present
-	if (!visibility || !owner || !repo || !workflowRunId || !artifactName || !filePath) {
-		throw new Error(
-			`Missing required path components in URL (${url}): ${JSON.stringify({ visibility, owner, repo, workflowRunId, artifactName, filePath })}`
-		);
-	}
-
-	return {
-		owner: decodeURIComponent(owner),
-		repo: decodeURIComponent(repo)
-	};
 }

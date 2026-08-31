@@ -44,11 +44,7 @@ describe('AWS integration with LocalStack', () => {
 
 	it.beforeEach(({ localstack }) => {
 		nock.enableNetConnect(
-			(host) =>
-				host.includes(localstack.host) ||
-				host.includes(localstack.hostname) ||
-				host.includes('127.0.0.1') ||
-				host.includes('localhost')
+			(host) => host.includes(localstack.host) || host.includes(localstack.hostname)
 		);
 
 		// Set environment variables for AWS SDK to use LocalStack
@@ -91,7 +87,7 @@ describe('AWS integration with LocalStack', () => {
 
 		// Mock GitHub API responses
 		let commitStatusCreated = false;
-		nock('https://api.github.com')
+		const mock = nock('https://api.github.com')
 			.post('/app/installations/1234/access_tokens')
 			.reply(201, { token: 'ghs_mocktoken', permissions: {} })
 			.get('/repos/my-org/my-repo')
@@ -139,6 +135,8 @@ describe('AWS integration with LocalStack', () => {
 		const response = await handler(sqsEvent, {} as never);
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(commitStatusCreated).toBe(true);
+		expect(mock.isDone()).toBe(true);
+		expect(mock.pendingMocks()).toStrictEqual([]);
 
 		const s3Object = await s3.send(
 			new GetObjectCommand({

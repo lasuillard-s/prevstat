@@ -2,6 +2,8 @@ import type { Logger } from 'pino';
 import type { ProbotOctokit } from 'probot';
 import { Context } from 'probot';
 import { AppConfig } from '../config.js';
+import { Repo } from '../lib/github.js';
+
 export abstract class BaseHandler<C extends Context = Context> {
 	/** The Probot event context for the current webhook delivery. */
 	protected readonly context: C;
@@ -25,10 +27,10 @@ export abstract class BaseHandler<C extends Context = Context> {
 	abstract handle(): Promise<void>;
 
 	/**
-	 * Returns the owner/repo of the repository the event was delivered for.
-	 * @returns The owner and repo of the event's repository
+	 * Returns the Repo instance of the repository the event was delivered for.
+	 * @returns The Repo for the event's repository
 	 */
-	protected repo(): { owner: string; repo: string } {
-		return this.context.repo();
+	protected repo(): Repo {
+		return Repo.fromContext(this.context);
 	}
 }

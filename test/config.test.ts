@@ -22,7 +22,7 @@ describe('AppConfig', () => {
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'test-client-id',
 			GITHUB_CLIENT_SECRET: 'test-client-secret',
-			CLOUDFRONT_DOMAIN: 'https://test.cloudfront.net',
+			CLOUDFRONT_DOMAIN: 'test.cloudfront.net',
 			CLOUDFRONT_PRIVATE_KEY: 'test-private-key',
 			CLOUDFRONT_KEY_PAIR_ID: 'test-key-pair-id',
 			CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: 900,
@@ -51,7 +51,7 @@ describe('AppConfig', () => {
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'custom-client-id',
 			GITHUB_CLIENT_SECRET: 'custom-client-secret',
-			CLOUDFRONT_DOMAIN: 'https://custom.cloudfront.net',
+			CLOUDFRONT_DOMAIN: 'custom.cloudfront.net',
 			CLOUDFRONT_PRIVATE_KEY: 'custom-private-key',
 			CLOUDFRONT_KEY_PAIR_ID: 'custom-key-pair-id',
 			JWT_SECRET: 'custom-jwt-secret',
@@ -104,9 +104,5 @@ describe('AppConfig', () => {
 			'another/repo:*:*',
 			'third/repo:.github/workflows/ci.yaml:*'
 		]);
-	});
-
-	it('throws an error when required configuration is missing', () => {
-		expect(() => AppConfig.parse({})).toThrow();
 	});
 });

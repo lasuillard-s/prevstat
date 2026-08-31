@@ -6,6 +6,7 @@ export const AppConfig = z.object({
 	// AWS related configuration
 	CLOUDFRONT_DOMAIN: z
 		.string()
+		.transform((val) => val.replace(/^https?:\/\//, '').replace(/\/+$/, ''))
 		.describe('CloudFront domain name for the app (e.g. blabblah.cloudfront.net)'),
 	CLOUDFRONT_PRIVATE_KEY: z.string().describe('CloudFront private key for the cookie signing'),
 	CLOUDFRONT_KEY_PAIR_ID: z.string().describe('CloudFront key pair ID for the cookie signing'),

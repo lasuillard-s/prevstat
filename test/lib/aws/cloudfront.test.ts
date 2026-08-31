@@ -27,6 +27,7 @@ describe('bakeCloudFrontCookies', () => {
 	};
 
 	it('creates signed cookies with proper policy for leading slash path', () => {
+		// Fixed timestamp corresponding to Wed Nov 15 2023 07:13:20 GMT+0900 (1700000000 epoch seconds)
 		const expiresAt = new Date(1700000000000);
 		const cookies = bakeCloudFrontCookies('/private/owner/repo/*', expiresAt, mockConfig);
 
@@ -55,6 +56,7 @@ describe('bakeCloudFrontCookies', () => {
 	});
 
 	it('handles paths without leading slash', () => {
+		// Fixed timestamp corresponding to Wed Nov 15 2023 07:13:20 GMT+0900 (1700000000 epoch seconds)
 		const expiresAt = new Date(1700000000000);
 		bakeCloudFrontCookies('private/owner/repo/*', expiresAt, mockConfig);
 

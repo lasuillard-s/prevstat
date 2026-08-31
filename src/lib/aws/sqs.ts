@@ -2,6 +2,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { SendMessageBatchCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Probot, ProbotOctokit } from 'probot';
 import type { AppConfig } from '../../config.js';
+import { APP_NAME } from '../../constants.js';
 import { errorToString } from '../../utils/string.js';
 import { ArtifactDownloader, ArtifactUploader } from '../github.js';
 import { buildArtifactPath } from '../url.js';
@@ -180,7 +181,7 @@ export class ArtifactProcessor {
 				await octokit.rest.checks.create({
 					owner,
 					repo,
-					name: `Prevstat / ${artifact.name}`,
+					name: `${APP_NAME} / ${artifact.name}`,
 					head_sha: headSha,
 					status: 'completed',
 					conclusion: 'failure',
@@ -202,7 +203,7 @@ export class ArtifactProcessor {
 				state: 'success',
 				target_url: targetUrl,
 				description: `Successfully uploaded artifact ${artifact.name} to S3.`,
-				context: `Prevstat / ${artifact.name}`
+				context: `${APP_NAME} / ${artifact.name}`
 			});
 		}
 	}

@@ -2,8 +2,88 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import mime from 'mime-types';
 import path from 'path';
-import type { Probot, ProbotOctokit } from 'probot';
+import type { Context, Probot, ProbotOctokit } from 'probot';
 import { buildArtifactPath } from './url.js';
+
+/**
+ * Encapsulates repository owner and name with helper methods.
+ */
+export class Repo {
+	constructor(
+		public readonly owner: string,
+		public readonly repo: string
+	) {}
+
+	/**
+	 * Parses a repository full name in `owner/repo` format into a Repo.
+	 * @param fullName Repository full name
+	 * @returns The parsed Repo
+	 */
+	static fromFullName(fullName: string): Repo {
+		const [owner, repo] = fullName.split('/');
+		if (!owner || !repo) {
+			throw new Error(`Invalid repository full name: ${fullName}`);
+		}
+		return new Repo(owner, repo);
+	}
+
+	/**
+	 * Creates a Repo from a Probot event context.
+	 * @param context Event context that exposes the repository helper
+	 * @returns The Repo for the event's repository
+	 */
+	static fromContext(context: Context): Repo {
+		const { owner, repo } = context.repo();
+		return new Repo(owner, repo);
+	}
+
+	/**
+	 * Parses the repository owner and name from an artifact document URL.
+	 * URL path must strictly match `/<visibility>/<owner>/<repo>/<workflowRunId>/<artifactName>/<filePath>`.
+	 * Throws an error if the URL is invalid or if any path component is missing.
+	 * @param url The artifact document URL
+	 * @returns The parsed Repo
+	 */
+	static fromUrl(url: string): Repo {
+		const parsedUrl = new URL(url);
+		const parts = parsedUrl.pathname.split('/');
+
+		// Expect ['', visibility, owner, repo, workflowRunId, artifactName, ...filePathParts]
+		if (parts.length < 7) {
+			throw new Error(`Incomplete artifact path in URL: ${url}`);
+		}
+
+		// Extract the required components from the URL path
+		const [, visibility, owner, repo, workflowRunId, artifactName, ...filePathParts] = parts;
+		const filePath = filePathParts.join('/');
+
+		// Validate that all required components are present
+		if (!visibility || !owner || !repo || !workflowRunId || !artifactName || !filePath) {
+			throw new Error(
+				`Missing required path components in URL (${url}): ${JSON.stringify({ visibility, owner, repo, workflowRunId, artifactName, filePath })}`
+			);
+		}
+
+		return new Repo(decodeURIComponent(owner), decodeURIComponent(repo));
+	}
+
+	/**
+	 * Returns the `owner/repo` full name of the repository.
+	 * @returns The full name in `owner/repo` format
+	 */
+	toString(): string {
+		return `${this.owner}/${this.repo}`;
+	}
+
+	/**
+	 * Checks if this repository equals another by owner and repo.
+	 * @param other The repository to compare with
+	 * @returns True if both owner and repo match
+	 */
+	equals(other: Repo): boolean {
+		return this.owner === other.owner && this.repo === other.repo;
+	}
+}
 
 /**
  * Downloads GitHub Actions workflow artifacts.

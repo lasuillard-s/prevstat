@@ -1,6 +1,4 @@
 import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
-import { createOAuthUserAuth } from '@octokit/auth-oauth-user';
-import { Octokit } from '@octokit/core';
 import express from 'express';
 import http from 'http';
 import jwt from 'jsonwebtoken';
@@ -11,16 +9,6 @@ import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { AppConfig } from '../../../src/config.js';
 import { router as authRouter } from '../../../src/routes/api/auth.js';
 import { test as it } from '../../helpers.js';
-
-vi.mock('@octokit/auth-oauth-user', () => ({
-	createOAuthUserAuth: vi.fn()
-}));
-
-vi.mock('@octokit/core', () => {
-	const OctokitMock = vi.fn();
-	OctokitMock.prototype.request = vi.fn();
-	return { Octokit: OctokitMock };
-});
 
 vi.mock('@aws-sdk/cloudfront-signer', () => ({
 	getSignedCookies: vi.fn()
@@ -33,6 +21,7 @@ describe('GET /api/auth router', () => {
 	let appConfig: AppConfig;
 
 	beforeEach<{ probot: Probot }>(async ({ probot }) => {
+		nock.cleanAll();
 		nock.enableNetConnect(/(127\.0\.0\.1|localhost)/);
 
 		appConfig = {
@@ -80,18 +69,20 @@ describe('GET /api/auth router', () => {
 			expect(await response.text()).toBe('Invalid redirect URI');
 		});
 
-		it('returns 400 when redirect_uri is for an untrusted domain or not private', async () => {
-			const response1 = await fetch(
+		it('returns 400 when redirect_uri is for an untrusted domain', async () => {
+			const response = await fetch(
 				`${serverUrl}/api/auth?redirect_uri=${encodeURIComponent('https://evil.com/private/my-org/my-repo/index.html')}`
 			);
-			expect(response1.status).toBe(400);
-			expect(await response1.text()).toBe('Invalid redirect URI');
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid redirect URI');
+		});
 
-			const response2 = await fetch(
+		it('returns 400 when redirect_uri is not private', async () => {
+			const response = await fetch(
 				`${serverUrl}/api/auth?redirect_uri=${encodeURIComponent('https://assets.example.com/public/my-org/my-repo/index.html')}`
 			);
-			expect(response2.status).toBe(400);
-			expect(await response2.text()).toBe('Invalid redirect URI');
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid redirect URI');
 		});
 
 		it('redirects to GitHub login with correct parameters', async () => {
@@ -120,22 +111,6 @@ describe('GET /api/auth router', () => {
 				'https://assets.example.com/private/my-org/my-repo/index.html'
 			);
 		});
-
-		it('normalizes CLOUDFRONT_DOMAIN if it contains scheme or trailing slash', async () => {
-			appConfig.CLOUDFRONT_DOMAIN = 'https://assets.example.com/';
-			const redirectUri = encodeURIComponent(
-				'https://assets.example.com/private/my-org/my-repo/index.html'
-			);
-			const response = await fetch(`${serverUrl}/api/auth?redirect_uri=${redirectUri}`, {
-				redirect: 'manual'
-			});
-
-			expect(response.status).toBe(302);
-			const location = new URL(response.headers.get('location')!);
-			expect(location.searchParams.get('redirect_uri')).toBe(
-				'https://assets.example.com/api/auth/callback'
-			);
-		});
 	});
 
 	describe('GET /callback', () => {
@@ -146,11 +121,6 @@ describe('GET /api/auth router', () => {
 		beforeEach(() => {
 			validState = jwt.sign({ documentUri: validDocumentUri }, appConfig.JWT_SECRET);
 
-			vi.mocked(createOAuthUserAuth).mockReturnValue((async () => ({
-				token: 'mock-token',
-				authentication: {} as never
-			})) as never);
-
 			vi.mocked(getSignedCookies).mockReturnValue({
 				'CloudFront-Key-Pair-Id': 'key-id',
 				'CloudFront-Policy': 'policy',
@@ -158,18 +128,29 @@ describe('GET /api/auth router', () => {
 			});
 		});
 
-		it('returns 400 when code or state is missing', async () => {
-			const response1 = await fetch(`${serverUrl}/api/auth/callback?code=abc`);
-			expect(response1.status).toBe(400);
-			expect(await response1.text()).toBe('Missing code or state');
-
-			const response2 = await fetch(`${serverUrl}/api/auth/callback?state=xyz`);
-			expect(response2.status).toBe(400);
-			expect(await response2.text()).toBe('Missing code or state');
+		it('returns 400 when code is missing', async () => {
+			const response = await fetch(`${serverUrl}/api/auth/callback?state=xyz`);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Missing code or state');
 		});
 
-		it('returns 400 on invalid or expired state JWT', async () => {
+		it('returns 400 when state is missing', async () => {
+			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc`);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Missing code or state');
+		});
+
+		it('returns 400 on invalid state JWT', async () => {
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=invalid-jwt`);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid or expired state');
+		});
+
+		it('returns 400 on expired state JWT', async () => {
+			const expiredState = jwt.sign({ documentUri: validDocumentUri }, appConfig.JWT_SECRET, {
+				expiresIn: -1
+			});
+			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${expiredState}`);
 			expect(response.status).toBe(400);
 			expect(await response.text()).toBe('Invalid or expired state');
 		});
@@ -191,7 +172,26 @@ describe('GET /api/auth router', () => {
 			expect(await response.text()).toBe('Invalid state: redirect URI missing or invalid');
 		});
 
-		it('returns 400 if documentUri is unparseable or incomplete for owner/repo', async () => {
+		it('returns 400 if documentUri is unparseable', async () => {
+			const badUriState = jwt.sign({ documentUri: 'invalid-url' }, appConfig.JWT_SECRET);
+			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${badUriState}`);
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe('Invalid state: redirect URI missing or invalid');
+		});
+
+		it('returns 400 if documentUri is incomplete for owner/repo', async () => {
+			const oauthMock = nock('https://github.com')
+				.post('/login/oauth/access_token', {
+					client_id: appConfig.GITHUB_CLIENT_ID,
+					client_secret: appConfig.GITHUB_CLIENT_SECRET,
+					code: 'abc'
+				})
+				.reply(200, {
+					access_token: 'mock-token',
+					token_type: 'bearer',
+					scope: 'repo'
+				});
+
 			const badUriState = jwt.sign(
 				{ documentUri: 'https://assets.example.com/private/my-org' },
 				appConfig.JWT_SECRET
@@ -199,29 +199,52 @@ describe('GET /api/auth router', () => {
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${badUriState}`);
 			expect(response.status).toBe(400);
 			expect(await response.text()).toBe('Invalid redirect URI');
+			expect(oauthMock.isDone()).toBe(true);
+			expect(oauthMock.pendingMocks()).toStrictEqual([]);
 		});
 
 		it('returns 403 if user has no read access', async () => {
-			const mockRequest = vi.fn().mockResolvedValue({
-				data: { permissions: { pull: false } }
-			});
-			Octokit.prototype.request = mockRequest as never;
+			const oauthMock = nock('https://github.com')
+				.post('/login/oauth/access_token', {
+					client_id: appConfig.GITHUB_CLIENT_ID,
+					client_secret: appConfig.GITHUB_CLIENT_SECRET,
+					code: 'abc'
+				})
+				.reply(200, {
+					access_token: 'mock-token',
+					token_type: 'bearer',
+					scope: 'repo'
+				});
+
+			const apiMock = nock('https://api.github.com')
+				.get('/repos/my-org/my-repo')
+				.reply(200, { permissions: { pull: false } });
 
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${validState}`);
 			expect(response.status).toBe(403);
 			expect(await response.text()).toBe('Have no read access to the repository');
-
-			expect(mockRequest).toHaveBeenCalledWith('GET /repos/{owner}/{repo}', {
-				owner: 'my-org',
-				repo: 'my-repo'
-			});
+			expect(oauthMock.isDone()).toBe(true);
+			expect(oauthMock.pendingMocks()).toStrictEqual([]);
+			expect(apiMock.isDone()).toBe(true);
+			expect(apiMock.pendingMocks()).toStrictEqual([]);
 		});
 
 		it('sets cookies and redirects on success', async () => {
-			const mockRequest = vi.fn().mockResolvedValue({
-				data: { permissions: { pull: true } }
-			});
-			Octokit.prototype.request = mockRequest as never;
+			const oauthMock = nock('https://github.com')
+				.post('/login/oauth/access_token', {
+					client_id: appConfig.GITHUB_CLIENT_ID,
+					client_secret: appConfig.GITHUB_CLIENT_SECRET,
+					code: 'abc'
+				})
+				.reply(200, {
+					access_token: 'mock-token',
+					token_type: 'bearer',
+					scope: 'repo'
+				});
+
+			const apiMock = nock('https://api.github.com')
+				.get('/repos/my-org/my-repo')
+				.reply(200, { permissions: { pull: true } });
 
 			const response = await fetch(`${serverUrl}/api/auth/callback?code=abc&state=${validState}`, {
 				redirect: 'manual'
@@ -242,6 +265,10 @@ describe('GET /api/auth router', () => {
 				privateKey: 'key',
 				policy: expect.any(String)
 			});
+			expect(oauthMock.isDone()).toBe(true);
+			expect(oauthMock.pendingMocks()).toStrictEqual([]);
+			expect(apiMock.isDone()).toBe(true);
+			expect(apiMock.pendingMocks()).toStrictEqual([]);
 		});
 	});
 });

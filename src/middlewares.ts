@@ -1,7 +1,5 @@
 import { getCurrentInvoke } from '@codegenie/serverless-express';
 import express from 'express';
-import type { Probot } from 'probot';
-import type { AppConfig } from './config.js';
 
 /**
  * Detects the AWS event source from a Lambda invocation event.
@@ -35,8 +33,7 @@ export function originVerificationMiddleware(
 	res: express.Response,
 	next: express.NextFunction
 ): void {
-	const probot = req.app.locals.probot as Probot;
-	const config = req.app.locals.config as AppConfig;
+	const { probot, config } = req.app.locals;
 
 	/*
 	 Internal AWS service routes (/aws/*) are dispatched by serverless-express
@@ -87,7 +84,7 @@ export function originVerificationMiddleware(
  * @param res Express response object
  */
 export function notFoundMiddleware(req: express.Request, res: express.Response): void {
-	const probot = req.app.locals.probot as Probot;
+	const { probot } = req.app.locals;
 	probot.log.warn({ method: req.method, url: req.url }, 'Route not found');
 	res.status(404).json({ message: 'Not Found' });
 }

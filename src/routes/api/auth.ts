@@ -2,17 +2,16 @@ import { createOAuthUserAuth } from '@octokit/auth-oauth-user';
 import { Octokit } from '@octokit/core';
 import express, { CookieOptions, Request } from 'express';
 import jwt from 'jsonwebtoken';
-import { Probot } from 'probot';
 import type { AppConfig } from '../../config.js';
 import { bakeCloudFrontCookies } from '../../lib/aws/cloudfront.js';
-import { buildRepositoryBasePath, isValidDocumentUri, parseRepoFromUrl } from '../../lib/url.js';
+import { Repo } from '../../lib/github.js';
+import { buildRepositoryBasePath, isValidDocumentUri } from '../../lib/url.js';
 import { errorToString } from '../../utils/string.js';
 
 export const router = express.Router();
 
 router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string }>, res) => {
-	const probot = req.app.locals.probot as Probot;
-	const config = req.app.locals.config as AppConfig;
+	const { probot, config } = req.app.locals;
 	const clientId = config.GITHUB_CLIENT_ID;
 
 	const documentUri = req.query.redirect_uri;
@@ -22,8 +21,7 @@ router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string 
 	}
 
 	// Prepare parameters for login redirection
-	const host = config.CLOUDFRONT_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-	const redirectUri = new URL('/api/auth/callback', `https://${host}`);
+	const redirectUri = new URL('/api/auth/callback', `https://${config.CLOUDFRONT_DOMAIN}`);
 	const state = encryptState(
 		{
 			documentUri: documentUri
@@ -45,8 +43,7 @@ router.get('/', (req: Request<object, unknown, unknown, { redirect_uri?: string 
 router.get(
 	'/callback',
 	async (req: Request<object, unknown, unknown, { code: string; state: string }>, res) => {
-		const probot = req.app.locals.probot as Probot;
-		const config = req.app.locals.config as AppConfig;
+		const { probot, config } = req.app.locals;
 
 		// Validate query parameters
 		const code = req.query.code;
@@ -83,12 +80,9 @@ router.get(
 		const userOctokit = new Octokit({ auth: token });
 
 		// Parse the repository owner and name from the document URI
-		let owner: string;
-		let repo: string;
+		let repo: Repo;
 		try {
-			const repoInfo = parseRepoFromUrl(documentUri);
-			owner = repoInfo.owner;
-			repo = repoInfo.repo;
+			repo = Repo.fromUrl(documentUri);
 		} catch (error) {
 			probot.log.error(`Invalid redirect URI: ${documentUri} => ${errorToString(error)}`);
 			return res.status(400).send('Invalid redirect URI');
@@ -96,8 +90,8 @@ router.get(
 
 		// Fetch repository information to check permissions
 		const { data: repoInfo } = await userOctokit.request('GET /repos/{owner}/{repo}', {
-			owner,
-			repo
+			owner: repo.owner,
+			repo: repo.repo
 		});
 
 		// Check if use has read access
@@ -108,7 +102,7 @@ router.get(
 		// Bake CloudFront signed cookies for the user to access the private document
 		const validSeconds = config.CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS;
 		const expiresAt = new Date(Date.now() + validSeconds * 1_000);
-		const basePath = buildRepositoryBasePath('private', owner, repo);
+		const basePath = buildRepositoryBasePath('private', repo.owner, repo.repo);
 		const signedCookies = bakeCloudFrontCookies(`${basePath}/*`, expiresAt, config);
 		const cookieOptions: CookieOptions = {
 			path: `${basePath}/`,
