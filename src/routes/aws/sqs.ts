@@ -13,7 +13,6 @@ router.post('/', async (req: Request<Record<string, string>, unknown, SQSEvent>,
 	const { probot, config, s3Client } = req.app.locals;
 
 	const processor = new ArtifactProcessor(probot, config, s3Client);
-
 	const batchItemFailures = await processor.processBatch(req.body.Records ?? []);
 
 	res.status(200).json({ batchItemFailures });

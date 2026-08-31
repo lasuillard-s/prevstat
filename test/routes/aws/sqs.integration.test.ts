@@ -10,7 +10,7 @@ import { ProcessArtifactMessage } from '../../../src/lib/aws/sqs.js';
 import { router as awsRouter } from '../../../src/routes/aws/index.js';
 import { test as it } from '../../helpers.js';
 
-describe('POST /aws/sqs router (Integration)', () => {
+describe('POST /aws/sqs router', () => {
 	const region = 'us-east-1';
 	const bucketName = 'router-test-bucket';
 

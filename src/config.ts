@@ -32,7 +32,7 @@ export const AppConfig = z.object({
 	JWT_EXPIRATION_SECONDS: z
 		.int()
 		.describe('Expiration time for the JWT token in seconds. Default is 5 minutes.')
-		.default(5 * 60), // Default to 5 minutes
+		.default(5 * 60),
 	// App configuration
 	ARTIFACT_PATTERNS: z
 		.string()
