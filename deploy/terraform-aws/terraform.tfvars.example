@@ -1,4 +1,4 @@
-app_slug             = "pre-sta"
+app_slug             = "prevstat"
 app_id               = "0000000"
 app_installation_id  = "0000000"
 private_key          = <<EOF
