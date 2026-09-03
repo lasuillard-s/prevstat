@@ -1,3 +1,14 @@
+locals {
+  # CodeBuild source
+  source_s3_prefix = "source/"
+  source_s3_key    = "${local.source_s3_prefix}source.zip"
+
+  # Codebuild build artifact
+  build_artifact_name = "dist.zip"
+  artifacts_s3_prefix = "artifacts/"
+  artifacts_s3_key    = "${local.artifacts_s3_prefix}${local.build_artifact_name}"
+}
+
 module "codebuild_artifacts" {
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "~> 5.0"
