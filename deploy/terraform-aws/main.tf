@@ -1,5 +1,6 @@
 locals {
-  project_root = abspath("${path.module}/../../")
+  project_root_relative = "../../"
+  project_root          = abspath("${path.module}/${local.project_root_relative}")
 
   /*
   Name for SSM parameter to store app config (variables and secrets)
@@ -11,30 +12,20 @@ locals {
 
   # Avoid circular dependency between S3 object and CloudFront distribution
   error_403_s3_key = "public/403.html"
+
+  # CodeBuild source
+  source_s3_prefix = "source/"
+  source_s3_key    = "${local.source_s3_prefix}source.zip"
+
+  # Codebuild build artifact
+  build_artifact_name = "dist.zip"
+  artifacts_s3_prefix = "artifacts/"
+  artifacts_s3_key    = "${local.artifacts_s3_prefix}${local.build_artifact_name}"
 }
 
 data "aws_partition" "current" {}
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
-
-resource "null_resource" "build" {
-  triggers = {
-    run_always = timestamp()
-  }
-
-  provisioner "local-exec" {
-    working_dir = local.project_root
-    command     = "npm run build"
-  }
-}
-
-data "archive_file" "dist" {
-  depends_on = [null_resource.build]
-
-  type        = "zip"
-  source_dir  = "${local.project_root}/dist"
-  output_path = "${path.module}/dist.zip"
-}
 
 resource "random_password" "jwt_secret" {
   length = 32
@@ -116,20 +107,32 @@ data "aws_iam_policy_document" "lambda_function" {
   }
 }
 
+data "aws_s3_object" "build_artifact" {
+  depends_on = [terraform_data.build_trigger]
+
+  bucket = module.codebuild_artifacts.s3_bucket_id
+  key    = local.artifacts_s3_key
+}
+
 # https://registry.terraform.io/modules/terraform-aws-modules/lambda/aws/latest
 module "lambda_function" {
-  depends_on = [null_resource.build]
-  source     = "terraform-aws-modules/lambda/aws"
-  version    = "~> 8.0"
+  depends_on = [data.aws_s3_object.build_artifact]
+
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "~> 8.0"
 
   function_name = var.app_name
   description   = "Main handler function of ${var.app_name} app."
 
-  runtime                 = "nodejs24.x"
-  handler                 = "aws-lambda.handler"
-  create_package          = false
-  local_existing_package  = data.archive_file.dist.output_path
-  ignore_source_code_hash = false
+  runtime = "nodejs24.x"
+  handler = "dist/aws-lambda.handler"
+
+  create_package = false
+  s3_existing_package = {
+    bucket     = data.aws_s3_object.build_artifact.bucket
+    key        = data.aws_s3_object.build_artifact.key
+    version_id = data.aws_s3_object.build_artifact.version_id
+  }
 
   attach_policy_json = true
   policy_json        = data.aws_iam_policy_document.lambda_function.json

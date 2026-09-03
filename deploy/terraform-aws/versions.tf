@@ -1,4 +1,7 @@
 terraform {
+  # Use of `action` block
+  required_version = ">= 1.14"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
