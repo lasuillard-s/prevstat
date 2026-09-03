@@ -12,6 +12,9 @@ locals {
 
   # Avoid circular dependency between S3 object and CloudFront distribution
   error_403_s3_key = "public/403.html"
+  error_403_rendered_content = templatefile("./custom-error-responses/403.html.tftpl", {
+    "CLOUDFRONT_DOMAIN" : module.cdn.cloudfront_distribution_domain_name
+  })
 
   # CodeBuild source
   source_s3_prefix = "source/"
@@ -231,11 +234,9 @@ module "s3_bucket" {
 resource "aws_s3_object" "error_403" {
   bucket = module.s3_bucket.s3_bucket_id
   key    = local.error_403_s3_key
-  content = templatefile("./custom-error-responses/403.html.tftpl", {
-    "CLOUDFRONT_DOMAIN" : module.cdn.cloudfront_distribution_domain_name
-  })
+  content = local.error_403_rendered_content
   content_type = "text/html; charset=utf-8"
-  etag         = filemd5("./custom-error-responses/403.html.tftpl")
+  source_hash = filemd5("./custom-error-responses/403.html.tftpl")
 }
 
 # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-trusted-signers.html
@@ -339,5 +340,6 @@ module "cdn" {
 
   viewer_certificate = {
     cloudfront_default_certificate = true
+    minimum_protocol_version = "TLSv1" # Default certificate only supports TLSv1 and above
   }
 }
