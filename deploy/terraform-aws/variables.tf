@@ -12,7 +12,7 @@ variable "app_name" {
 
 variable "app_slug" {
   type        = string
-  description = "The slug of your GitHub App (e.g. `pre-sta`)."
+  description = "The slug of your GitHub App (e.g. `prevstat`)."
   # NOTE: The slug cannot have default as it would conflict with GitHub Apps created by other users.
 }
 

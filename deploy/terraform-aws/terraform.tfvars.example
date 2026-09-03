@@ -1,4 +1,4 @@
-app_slug             = "pre-sta"
+app_slug             = "prevstat"
 app_id               = "0000000"
 app_installation_id  = "0000000"
 private_key          = <<EOF
@@ -10,3 +10,6 @@ webhook_secret       = "your-webhook-secret"
 github_client_id     = "your-github-app-client-id"
 github_client_secret = "your-github-app-client-secret"
 artifact_patterns    = "owner/repo:.github/workflows/ci.yaml:artifact"
+variables = {
+  "LOG_LEVEL" = "debug"
+}

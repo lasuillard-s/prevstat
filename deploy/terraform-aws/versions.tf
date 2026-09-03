@@ -1,7 +1,14 @@
 terraform {
+  # Use of `action` block
+  required_version = ">= 1.14"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    github = {
+      source  = "integrations/github"
       version = "~> 6.0"
     }
   }
