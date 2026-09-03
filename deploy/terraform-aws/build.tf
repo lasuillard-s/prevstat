@@ -14,6 +14,7 @@ module "codebuild_artifacts" {
   version = "~> 5.0"
 
   bucket_prefix = "${var.app_name}-codebuild-artifact-"
+  force_destroy = true
 }
 
 resource "aws_iam_role" "codebuild_role" {
