@@ -29,7 +29,7 @@ resource "aws_ssm_parameter" "lambda_app_config" {
       "CLOUDFRONT_KEY_PAIR_ID" : aws_cloudfront_public_key.public_key.id,
       "JWT_SECRET" : random_password.jwt_secret.result,
       "S3_BUCKET_NAME" : module.static_websites.s3_bucket_id,
-      "SQS_QUEUE_URL" : module.sqs.queue_url,
+      "SQS_QUEUE_URL" : module.task_queue.queue_url,
       "ORIGIN_VERIFY_SECRET" : random_password.x_origin_verify.result,
       "ARTIFACT_PATTERNS" : var.artifact_patterns
     },
@@ -69,7 +69,7 @@ data "aws_iam_policy_document" "lambda_function" {
       "sqs:SendMessage"
     ]
     resources = [
-      module.sqs.queue_arn
+      module.task_queue.queue_arn
     ]
   }
 
@@ -130,7 +130,7 @@ module "lambda_function" {
 
   event_source_mapping = {
     sqs = {
-      event_source_arn                   = module.sqs.queue_arn
+      event_source_arn                   = module.task_queue.queue_arn
       function_response_types            = ["ReportBatchItemFailures"]
       batch_size                         = 5
       maximum_batching_window_in_seconds = 10
@@ -142,7 +142,7 @@ module "lambda_function" {
   }
 }
 
-module "sqs" {
+module "task_queue" {
   source  = "terraform-aws-modules/sqs/aws"
   version = "~> 5.0"
 
