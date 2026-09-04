@@ -96,6 +96,8 @@ resource "aws_codebuild_project" "build" {
   description  = "Build project for ${var.app_name}"
   service_role = aws_iam_role.codebuild_role.arn
 
+  build_timeout = 5 # In minutes
+
   source {
     type     = "S3"
     location = "${module.codebuild_artifacts.s3_bucket_id}/${local.source_s3_key}"
