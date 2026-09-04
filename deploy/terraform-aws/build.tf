@@ -114,7 +114,7 @@ resource "aws_codebuild_project" "build" {
           commands = [
             "npm run build",
             "cp package.json package-lock.json dist/",
-            "cd dist && npm ci --omit=dev && rm package.json package-lock.json && cd .."
+            "(cd dist && npm ci --omit=dev && rm -f package.json package-lock.json)"
           ]
         }
       }

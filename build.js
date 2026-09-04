@@ -7,7 +7,7 @@ const sourceRoot = 'src';
 
 await esbuild.build({
 	plugins: [clean({ patterns: [outdir] })],
-	entryPoints: [path.resolve(sourceRoot, 'aws-lambda.js')],
+	entryPoints: [path.resolve(sourceRoot, 'aws-lambda.ts')],
 	bundle: true,
 	outfile: path.join(outdir, 'aws-lambda.mjs'),
 	sourceRoot,
