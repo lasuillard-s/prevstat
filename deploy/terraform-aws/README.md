@@ -95,10 +95,13 @@ Review the plan and click **Confirm & apply** to deploy the app to AWS.
 
 ## Update your GitHub App configuration
 
-Now you need to update your GitHub App configuration to receive events from GitHub. You can find the webhook URL in the outputs of your Terraform run.
+Now you need to update your GitHub App configuration for the app to work properly.
 
-![Check the outputs](./docs/check-the-outputs.png)
+![Terraform outputs](./docs/terraform-outputs.png)
+
+- To receive events from GitHub, you should update the webhook URL
+- To access the protected(private) static websites, you should update the redirect URI to the value of the `redirect_uri` output.
 
 ... and update your GitHub App configuration with the new webhook URL.
 
-![Update GitHub App webhook URL](./docs/update-github-app-webhook-url.png)
+![Update GitHub App configuration](./docs/update-github-app-configuration.png)
