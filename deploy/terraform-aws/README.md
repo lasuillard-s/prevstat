@@ -18,7 +18,7 @@ sequenceDiagram
     tfc ->> s3: Upload source code to S3
     tfc ->> cb: Trigger build
     cb ->> s3: Upload build artifacts
-    cb ->> tfc: Wait for build to complete
+    tfc ->> cb: Wait for build to complete
     tfc ->> lambda: Deploy Lambda function
 ```
 
@@ -78,7 +78,7 @@ Then set environment variables in your workspace:
 
 ![Update dynamic provider configuration](./docs/update-dynamic-provider-configuration.png)
 
-We will not cover AWS setup in detail here. Please refer to AWS documentation for more information on how to create an IAM role and set up trust relationship.
+We will not cover AWS setup in detail here. Please refer to AWS documentation for more information on how to create an IAM role and set up a trust relationship.
 
 ## Deploy the app
 
