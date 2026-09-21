@@ -59,7 +59,7 @@
 		}
 	},
 	"devDependencies": {
-		"@eslint/eslintrc": "3.3.6",
+		"@eslint/eslintrc": "3.3.7",
 		"@eslint/js": "10.0.1",
 		"@testcontainers/localstack": "12.1.0",
 		"@types/adm-zip": "0.5.8",
@@ -67,23 +67,23 @@
 		"@types/express": "5.0.6",
 		"@types/jsonwebtoken": "9.0.10",
 		"@types/mime-types": "3.0.1",
-		"@types/node": "24.13.3",
-		"@vitest/coverage-v8": "5.0.0",
-		"@vitest/ui": "5.0.0",
-		"esbuild": "0.28.1",
+		"@types/node": "24.13.5",
+		"@vitest/coverage-v8": "5.0.1",
+		"@vitest/ui": "5.0.1",
+		"esbuild": "0.28.2",
 		"esbuild-plugin-clean": "1.0.1",
 		"eslint-config-prettier": "10.1.8",
-		"eslint-plugin-jsdoc": "63.1.0",
-		"globals": "17.7.0",
+		"eslint-plugin-jsdoc": "63.3.3",
+		"globals": "17.12.0",
 		"ioredis": "5.11.1",
-		"nock": "14.0.16",
+		"nock": "14.0.17",
 		"nodemon": "3.1.14",
-		"prettier": "3.9.5",
+		"prettier": "3.9.8",
 		"smee-client": "5.0.0",
 		"testcontainers": "12.1.0",
 		"typescript": "6.0.3",
-		"typescript-eslint": "8.64.0",
-		"vitest": "5.0.0"
+		"typescript-eslint": "8.70.0",
+		"vitest": "5.0.1"
 	},
 	"allowScripts": {
 		"esbuild@0.28.1": true
