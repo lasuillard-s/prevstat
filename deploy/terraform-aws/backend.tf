@@ -84,8 +84,6 @@ data "aws_s3_object" "build_artifact" {
 
 # https://registry.terraform.io/modules/terraform-aws-modules/lambda/aws/latest
 module "lambda_function" {
-  depends_on = [data.aws_s3_object.build_artifact]
-
   source  = "terraform-aws-modules/lambda/aws"
   version = "~> 8.0"
 
