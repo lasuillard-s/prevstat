@@ -1,8 +1,8 @@
 .devcontainer
 .vscode
+.vitest
 coverage
 node_modules
-test-report
 *.pem
 junit.xml
 npm-debug.log
