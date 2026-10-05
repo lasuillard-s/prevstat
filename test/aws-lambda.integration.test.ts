@@ -57,7 +57,7 @@ describe('AWS integration with LocalStack', () => {
 		vi.stubEnv('AWS_S3_USE_PATH_STYLE_ENDPOINT', 'true');
 	});
 
-	it('loads config from SSM, initializes Lambda handler, and processes SQS record uploading to S3', async () => {
+	it('loads config from S3, initializes Lambda handler, and processes SQS record uploading to S3', async () => {
 		const configPayload = {
 			APP_ID: '123',
 			PRIVATE_KEY: privateKey,
