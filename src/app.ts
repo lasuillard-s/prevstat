@@ -78,7 +78,7 @@ export function setupProbotApp(config: AppConfig, sqsClient?: SQSClient) {
 		);
 
 		probot.on('workflow_run.completed', async (context: Context<'workflow_run.completed'>) => {
-			await new WorkflowRunCompletedHandler(context, config, sqsClient).handle();
+			await new WorkflowRunCompletedHandler(context, config, sqsClient).execute();
 		});
 
 		probot.log.info('Probot middleware initialized');
