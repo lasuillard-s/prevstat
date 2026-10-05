@@ -7,8 +7,7 @@ export default defineConfig({
 		testTimeout: 10_000,
 		reporters: ['default', 'junit', 'html'],
 		outputFile: {
-			junit: './junit.xml',
-			html: './test-report/index.html'
+			junit: './junit.xml'
 		},
 		coverage: {
 			enabled: true,
