@@ -15,6 +15,7 @@ describe('bakeCloudFrontCookies', () => {
 	const mockConfig: AppConfig = {
 		GITHUB_CLIENT_ID: 'client-id',
 		GITHUB_CLIENT_SECRET: 'client-secret',
+		ALLOWED_PRINCIPALS: ['*'],
 		CLOUDFRONT_DOMAIN: 'assets.example.com',
 		CLOUDFRONT_PRIVATE_KEY: 'mock-private-key',
 		CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',

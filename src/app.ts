@@ -1,7 +1,8 @@
 import type { SQSClient } from '@aws-sdk/client-sqs';
 import express from 'express';
-import { createNodeMiddleware, createProbot, Probot } from 'probot';
+import { createNodeMiddleware, createProbot, Probot, type Context } from 'probot';
 import { AppConfig } from './config.js';
+import InstallationHandler from './event-handlers/installation.js';
 import WorkflowRunCompletedHandler from './event-handlers/workflow_run.completed.js';
 import { notFoundMiddleware, originVerificationMiddleware } from './middlewares.js';
 import { router as apiRouter } from './routes/api/index.js';
@@ -68,7 +69,15 @@ export function setupProbotApp(config: AppConfig, sqsClient?: SQSClient) {
 		// Register event listeners
 		// NOTE: Lambda will freeze the process after the handler returns,
 		//       so we need to await the handler to ensure it completes before returning.
-		probot.on('workflow_run.completed', async (context) => {
+
+		probot.on(
+			['installation.created', 'installation.unsuspend'],
+			async (context: Context<'installation.created' | 'installation.unsuspend'>) => {
+				await new InstallationHandler(context, config, probot).execute();
+			}
+		);
+
+		probot.on('workflow_run.completed', async (context: Context<'workflow_run.completed'>) => {
 			await new WorkflowRunCompletedHandler(context, config, sqsClient).handle();
 		});
 
