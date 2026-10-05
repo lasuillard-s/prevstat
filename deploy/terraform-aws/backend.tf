@@ -5,17 +5,25 @@ locals {
   - Bypass Lambda environment variable size limit (4KB)
   - Avoid circular dependency between Lambda, SSM parameter and CloudFront distribution
   */
-  lambda_app_config_name = "/${var.app_name}/config"
+  lambda_app_config_name = "config.json"
 }
 
 resource "random_password" "jwt_secret" {
   length = 32
 }
 
-resource "aws_ssm_parameter" "lambda_app_config" {
-  name = local.lambda_app_config_name
-  type = "SecureString"
-  value = jsonencode(merge(
+module "app_config" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "~> 5.0"
+
+  bucket_prefix = "${var.app_name}-config-"
+  force_destroy = true
+}
+
+resource "aws_s3_object" "app_config" {
+  bucket = module.app_config.s3_bucket_id
+  key    = local.lambda_app_config_name
+  content = jsonencode(merge(
     {
       // Probot
       "APP_ID" : var.app_id,
@@ -39,24 +47,12 @@ resource "aws_ssm_parameter" "lambda_app_config" {
 
 data "aws_iam_policy_document" "lambda_function" {
   statement {
-    sid = "AllowLambdaToReadSSMParameter"
+    sid = "GetConfigFromS3"
     actions = [
-      "ssm:GetParameter"
+      "s3:GetObject"
     ]
     resources = [
-      // NOTE: Using ARN instead of directly referencing aws_ssm_parameter.lambda_app_config.id
-      // to avoid circular dependency issue with Lambda function
-      "arn:${data.aws_partition.current.partition}:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.lambda_app_config_name}"
-    ]
-  }
-
-  statement {
-    sid = "AllowLambdaToDecryptSSMParameter"
-    actions = [
-      "kms:Decrypt"
-    ]
-    resources = [
-      "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
+      "${module.app_config.s3_bucket_arn}/${local.lambda_app_config_name}"
     ]
   }
 
@@ -116,7 +112,8 @@ module "lambda_function" {
 
   environment_variables = merge(
     {
-      "LAMBDA_SSM_PARAMETER_NAME" : local.lambda_app_config_name,
+      "LAMBDA_S3_CONFIG_BUCKET" : module.app_config.s3_bucket_id,
+      "LAMBDA_S3_CONFIG_KEY" : local.lambda_app_config_name,
     },
     var.variables, // User-provided variables will OVERRIDE
   )
