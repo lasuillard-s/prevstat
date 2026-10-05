@@ -1,10 +1,5 @@
 locals {
-  /*
-  Name for SSM parameter to store app config (variables and secrets)
-
-  - Bypass Lambda environment variable size limit (4KB)
-  - Avoid circular dependency between Lambda, SSM parameter and CloudFront distribution
-  */
+  # Name of the S3 object containing the Lambda app configuration (to avoid circular dependency)
   lambda_app_config_name = "config.json"
 }
 
