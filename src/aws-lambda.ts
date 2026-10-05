@@ -21,8 +21,7 @@ async function initEnv(s3Bucket: string, s3Key: string) {
 		}
 		console.debug('Successfully retrieved S3 object:', s3Key);
 	} catch (error) {
-		console.error('Error retrieving S3 object:', error);
-		process.exit(1); // Exit the process with a non-zero status code to indicate failure
+		throw new Error('Error retrieving S3 object', { cause: error });
 	}
 }
 
