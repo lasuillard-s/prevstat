@@ -30,8 +30,7 @@ async function initEnv(s3Bucket: string, s3Key: string) {
 //       so we wrap it in an async IIFE to ensure proper execution order.
 const app = await (async function () {
 	if (!process.env.LAMBDA_S3_CONFIG_BUCKET || !process.env.LAMBDA_S3_CONFIG_KEY) {
-		console.error('Missing S3 configuration for Lambda environment.');
-		process.exit(1);
+		throw new Error('Missing S3 configuration for Lambda environment.');
 	}
 	await initEnv(process.env.LAMBDA_S3_CONFIG_BUCKET, process.env.LAMBDA_S3_CONFIG_KEY);
 	return createApp();
