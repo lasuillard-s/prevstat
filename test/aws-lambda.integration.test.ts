@@ -73,16 +73,6 @@ describe('AWS integration with LocalStack', () => {
 			JWT_SECRET: 'jwt-secret'
 		};
 
-		await s3.send(
-			new PutObjectCommand({
-				Bucket: bucketName,
-				Key: 'config.json',
-				Body: JSON.stringify(configPayload)
-			})
-		);
-		vi.stubEnv('LAMBDA_S3_CONFIG_BUCKET', bucketName);
-		vi.stubEnv('LAMBDA_S3_CONFIG_KEY', 'config.json');
-
 		const zip = new AdmZip();
 		zip.addFile('index.html', Buffer.from('<html>Integration Test</html>'));
 		const zipBuffer = zip.toBuffer();
@@ -115,6 +105,15 @@ describe('AWS integration with LocalStack', () => {
 			})
 			.reply(201, { state: 'success' });
 
+		await s3.send(
+			new PutObjectCommand({
+				Bucket: bucketName,
+				Key: 'config.json',
+				Body: JSON.stringify(configPayload)
+			})
+		);
+		vi.stubEnv('LAMBDA_S3_CONFIG_BUCKET', bucketName);
+		vi.stubEnv('LAMBDA_S3_CONFIG_KEY', 'config.json');
 		const { handler } = await import('../src/aws-lambda.js');
 
 		const sqsEvent = {
