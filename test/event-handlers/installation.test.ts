@@ -111,7 +111,7 @@ describe('installation events access control', () => {
 
 		it('uninstalls app on installation.unsuspend', async ({ probot }) => {
 			const mock = nock('https://api.github.com')
-				.delete(`/app/installations/${installationId}`)
+				.delete(`/app/installations/${unsuspendPayload.installation.id}`)
 				.reply(204);
 
 			// @ts-expect-error Ignore fixture type mismatch
