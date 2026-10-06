@@ -49,7 +49,7 @@ Workflow artifact is matched by the patterns in the app configuration. You need 
 ## 🚀 Deploying the application
 
 > [!NOTE]
-> GitHub App must be installed and configured properly before deploying the application. It will not covered in this guide.
+> A GitHub App must be created before deployment so that its credentials can be supplied. After deployment, follow the linked guide to configure its webhook and OAuth callback URLs from the Terraform outputs.
 
 Please refer to the [`deploy/terraform-aws`](./deploy/terraform-aws) guide for instructions on deploying the application.
 
@@ -62,7 +62,7 @@ The most important environment variables are below. See [`.env.example`](./.env.
 | `GITHUB_CLIENT_ID`                            | The client ID of your GitHub OAuth App.                                                                                                                                                       |
 | `GITHUB_CLIENT_SECRET`                        | The client secret of your GitHub OAuth App.                                                                                                                                                   |
 | `ALLOWED_PRINCIPALS`                          | A comma-separated list of GitHub usernames or organizations allowed to install the GitHub App. Defaults to `*` (no restrictions). If empty, no one will be allowed to install the GitHub App. |
-| `CLOUD_FRONT_DOMAIN`                          | The domain name of your CloudFront distribution.                                                                                                                                              |
+| `CLOUDFRONT_DOMAIN`                         | The domain name of your CloudFront distribution.                                                                                                                                              |
 | `CLOUDFRONT_PRIVATE_KEY`                      | The private key used for signing CloudFront cookies.                                                                                                                                          |
 | `CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS` | The expiration time (in seconds) for the signed CloudFront cookies.                                                                                                                           |
 | `ORIGIN_VERIFY_SECRET`                        | The secret used to verify the origin of requests.                                                                                                                                             |

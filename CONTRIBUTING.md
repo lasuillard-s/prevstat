@@ -54,7 +54,7 @@ This repository uses `nix` to manage dependencies and development tools. Run `ni
 > [!NOTE]
 > You will need Docker to run the tests (testcontainers). This is not installed via `nix` because it requires root privileges. Please install it separately.
 
-Following tools will be installed and managed by `nix`:
+The following tools will be installed and managed by `nix`:
 
 - `pre-commit`
 - `just` command runner
