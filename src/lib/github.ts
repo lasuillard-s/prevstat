@@ -96,7 +96,7 @@ export class ArtifactDownloader {
 	 * @param owner Repository owner
 	 * @param repo Repository name
 	 * @param artifactId GitHub artifact ID
-	 * @returns Buffer containing the downloaded zip archive
+	 * @returns A safe wrapper around the downloaded zip archive
 	 */
 	async download(owner: string, repo: string, artifactId: number): Promise<SafeAdmZip> {
 		const download = await this.octokit.rest.actions.downloadArtifact({
