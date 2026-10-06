@@ -167,13 +167,16 @@ export class ArtifactProcessor {
 			artifact_id: artifactId
 		});
 
+		// Fetch workflow run details to get the head SHA of the commit associated with the run
+		// NOTE: We fetch workflow run details for reliability because `artifact.workflow_run`
+		//       can be undefined
 		const workflowRunId = artifact.workflow_run?.id ?? runId;
-		const headSha = artifact.workflow_run?.head_sha;
-		if (!headSha) {
-			throw new Error(
-				`Missing head SHA for artifact ${artifact.name} in workflow run ${workflowRunId}`
-			);
-		}
+		const { data: workflowRun } = await octokit.rest.actions.getWorkflowRun({
+			owner,
+			repo,
+			run_id: workflowRunId
+		});
+		const headSha = workflowRun.head_sha;
 
 		this.probot.log.info(
 			`Processing artifact ${artifact.name} (id: ${artifact.id}) for ${owner}/${repo} workflow run ${workflowRunId}`
