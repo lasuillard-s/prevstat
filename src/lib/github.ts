@@ -1,8 +1,8 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import mime from 'mime-types';
-import path from 'path';
-import type { Context, Probot, ProbotOctokit } from 'probot';
+import type { Context, ProbotOctokit } from 'probot';
+import { SafeAdmZip } from '../utils/zip.js';
 import { buildArtifactPath } from './url.js';
 
 /**
@@ -98,14 +98,16 @@ export class ArtifactDownloader {
 	 * @param artifactId GitHub artifact ID
 	 * @returns Buffer containing the downloaded zip archive
 	 */
-	async download(owner: string, repo: string, artifactId: number): Promise<Buffer> {
+	async download(owner: string, repo: string, artifactId: number): Promise<SafeAdmZip> {
 		const download = await this.octokit.rest.actions.downloadArtifact({
 			owner,
 			repo,
 			artifact_id: artifactId,
 			archive_format: 'zip'
 		});
-		return Buffer.from(download.data as ArrayBuffer);
+		const buffer = Buffer.from(download.data as ArrayBuffer);
+		const zip = new AdmZip(buffer);
+		return new SafeAdmZip(zip);
 	}
 }
 
@@ -126,33 +128,21 @@ export interface ArtifactUploadTarget {
 export class ArtifactUploader {
 	constructor(
 		private readonly s3Client: S3Client,
-		private readonly bucketName: string,
-		private readonly log?: Probot['log']
+		private readonly bucketName: string
 	) {}
 
 	/**
 	 * Unzips artifact archive in-memory and uploads each file to S3.
 	 * Skips directory entries and unsafe paths.
-	 * @param zipBuffer Zip file buffer
+	 * @param zip The SafeAdmZip instance representing the artifact zip archive
 	 * @param target Target repository and artifact metadata
 	 */
-	async upload(zipBuffer: Buffer, target: ArtifactUploadTarget): Promise<void> {
+	async upload(zip: SafeAdmZip, target: ArtifactUploadTarget): Promise<void> {
 		const { owner, repo, workflowRunId, artifactName, visibility } = target;
-		const zip = new AdmZip(zipBuffer);
-		const zipEntries = zip.getEntries();
+		const s3Commands: Array<PutObjectCommand> = [];
 
-		const uploadTasks: Array<() => Promise<void>> = [];
-
-		for (const entry of zipEntries) {
+		for (const entry of zip.getEntries()) {
 			if (entry.isDirectory) continue;
-
-			const safeEntryName = sanitizeZipEntryPath(entry.entryName);
-			if (!safeEntryName) {
-				this.log?.warn(
-					`Skipping unsafe or invalid zip entry path: "${entry.entryName}" in artifact ${artifactName}`
-				);
-				continue;
-			}
 
 			const path = buildArtifactPath(
 				visibility,
@@ -160,50 +150,29 @@ export class ArtifactUploader {
 				repo,
 				workflowRunId,
 				artifactName,
-				safeEntryName
+				entry.entryName
 			);
+			const contentType = mime.lookup(entry.entryName) || 'application/octet-stream';
+
+			// Remove leading slash from the path to form the S3 key
 			const s3Key = path.startsWith('/') ? path.substring(1) : path;
-			const contentType = mime.lookup(safeEntryName) || 'application/octet-stream';
 
-			uploadTasks.push(async () => {
-				await this.s3Client.send(
-					new PutObjectCommand({
-						Bucket: this.bucketName,
-						Key: s3Key,
-						Body: entry.getData(),
-						ContentType: contentType
-					})
-				);
-			});
+			s3Commands.push(
+				new PutObjectCommand({
+					Bucket: this.bucketName,
+					Key: s3Key,
+					Body: entry.getData(),
+					ContentType: contentType
+				})
+			);
 		}
 
+		// Upload S3 commands in chunks to avoid overwhelming the S3 service
 		const chunkSize = 50;
-		for (let i = 0; i < uploadTasks.length; i += chunkSize) {
-			await Promise.all(uploadTasks.slice(i, i + chunkSize).map((task) => task()));
+		for (let i = 0; i < s3Commands.length; i += chunkSize) {
+			await Promise.all(
+				s3Commands.slice(i, i + chunkSize).map((command) => this.s3Client.send(command))
+			);
 		}
 	}
-}
-
-/**
- * Safely sanitizes a zip entry name by normalizing separators, removing leading slashes,
- * and rejecting path traversal (e.g. `..`).
- * @param entryName The entry name from the zip archive
- * @returns The sanitized safe relative path, or null if invalid or unsafe
- */
-export function sanitizeZipEntryPath(entryName: string): string | null {
-	const normalized = entryName.replace(/\\/g, '/');
-	const posixNormalized = path.posix.normalize(normalized);
-	const cleanPath = posixNormalized.replace(/^\/+/, '');
-
-	if (
-		!cleanPath ||
-		cleanPath === '.' ||
-		cleanPath.startsWith('../') ||
-		cleanPath === '..' ||
-		cleanPath.split('/').includes('..')
-	) {
-		return null;
-	}
-
-	return cleanPath;
 }
