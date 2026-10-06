@@ -39,7 +39,10 @@ export async function createLambdaHandler() {
  * @param s3Key The key (path) to the configuration file within the S3 bucket.
  */
 async function initEnv(s3Bucket: string, s3Key: string) {
-	const s3Client = new S3Client({});
+	const s3Client = new S3Client({
+		// See https://github.com/aws/aws-sdk-js-v3/issues/7136
+		forcePathStyle: process.env.AWS_S3_USE_PATH_STYLE_ENDPOINT === 'true'
+	});
 	try {
 		const response = await s3Client.send(new GetObjectCommand({ Bucket: s3Bucket, Key: s3Key }));
 		const jsonStr = await response.Body?.transformToString();
