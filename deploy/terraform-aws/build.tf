@@ -17,6 +17,24 @@ module "codebuild_artifacts" {
 
   bucket_prefix = "${var.app_name}-codebuild-artifact-"
   force_destroy = true
+
+  control_object_ownership = true
+  object_ownership         = "BucketOwnerEnforced"
+
+  versioning = {
+    enabled = false
+  }
+
+  lifecycle_rule = [
+    {
+      id      = "delete-objects-after-7-days"
+      enabled = true
+
+      expiration = {
+        days = 7
+      }
+    }
+  ]
 }
 
 resource "aws_iam_role" "codebuild_role" {
