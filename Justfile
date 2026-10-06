@@ -55,6 +55,7 @@ run:
 # Remove temporary files
 clean:
     rm --recursive --force \
+        .vitest/ \
         coverage/ \
         dist/ \
         junit.xml
