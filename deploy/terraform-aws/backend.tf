@@ -75,15 +75,10 @@ data "aws_iam_policy_document" "lambda_function" {
   }
 }
 
-data "aws_s3_object" "build_artifact" {
-  depends_on = [terraform_data.build_trigger]
-
-  bucket = module.codebuild_artifacts.s3_bucket_id
-  key    = local.artifacts_s3_key
-}
-
 # https://registry.terraform.io/modules/terraform-aws-modules/lambda/aws/latest
 module "lambda_function" {
+  depends_on = [terraform_data.build_trigger]
+
   source  = "terraform-aws-modules/lambda/aws"
   version = "~> 8.0"
 
@@ -95,9 +90,8 @@ module "lambda_function" {
 
   create_package = false
   s3_existing_package = {
-    bucket     = data.aws_s3_object.build_artifact.bucket
-    key        = data.aws_s3_object.build_artifact.key
-    version_id = data.aws_s3_object.build_artifact.version_id
+    bucket = module.codebuild_artifacts.s3_bucket_id
+    key    = local.dist_s3_key
   }
 
   attach_policy_json = true
