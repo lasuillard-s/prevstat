@@ -109,7 +109,9 @@ export async function createApp(
  * @param sqsClient Optional SQS client instance
  * @returns App initialization function for Probot
  */
-function setupProbotApp(config: AppConfig, sqsClient?: SQSClient) {
+// BUG: This function is not imported and no need to be imported by any other module in the project,
+//      but CI fails with import failure
+export function setupProbotApp(config: AppConfig, sqsClient?: SQSClient) {
 	return function (probot: Probot): void {
 		probot.onError((error) => {
 			probot.log.error(error, 'Unhandled error caught');
