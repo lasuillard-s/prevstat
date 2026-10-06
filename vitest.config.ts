@@ -6,6 +6,7 @@ export default defineConfig({
 		hookTimeout: 180_000, // 3 minutes for integration tests with LocalStack
 		testTimeout: 10_000,
 		reporters: ['default', 'junit', 'html'],
+		silent: 'passed-only',
 		outputFile: {
 			junit: './junit.xml'
 		},
