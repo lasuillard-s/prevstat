@@ -1,12 +1,17 @@
-import { CreateBucketCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+	CreateBucketCommand,
+	GetObjectCommand,
+	PutObjectCommand,
+	S3Client
+} from '@aws-sdk/client-s3';
 import { CreateQueueCommand, SQSClient } from '@aws-sdk/client-sqs';
-import { PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import AdmZip from 'adm-zip';
 import fs from 'fs';
 import nock from 'nock';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, vi } from 'vitest';
+import { createLambdaHandler } from '../src/app.js';
 import { test as it } from './helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,7 +22,6 @@ describe('AWS integration with LocalStack', () => {
 
 	let s3: S3Client;
 	let sqs: SQSClient;
-	let ssm: SSMClient;
 
 	const bucketName = 'test-bucket';
 	let queueUrl: string;
@@ -33,7 +37,6 @@ describe('AWS integration with LocalStack', () => {
 		};
 		s3 = new S3Client({ ...clientConfig, forcePathStyle: true });
 		sqs = new SQSClient(clientConfig);
-		ssm = new SSMClient(clientConfig);
 
 		// Create resources in LocalStack for testing
 		await s3.send(new CreateBucketCommand({ Bucket: bucketName }));
@@ -55,7 +58,7 @@ describe('AWS integration with LocalStack', () => {
 		vi.stubEnv('AWS_S3_USE_PATH_STYLE_ENDPOINT', 'true');
 	});
 
-	it('loads config from SSM, initializes Lambda handler, and processes SQS record uploading to S3', async () => {
+	it('loads config from S3, initializes Lambda handler, and processes SQS record uploading to S3', async () => {
 		const configPayload = {
 			APP_ID: '123',
 			PRIVATE_KEY: privateKey,
@@ -70,16 +73,6 @@ describe('AWS integration with LocalStack', () => {
 			ARTIFACT_PATTERNS: 'my-org/my-repo:.github/workflows/ci.yaml:build*',
 			JWT_SECRET: 'jwt-secret'
 		};
-
-		await ssm.send(
-			new PutParameterCommand({
-				Name: '/prevstat/config',
-				Value: JSON.stringify(configPayload),
-				Type: 'String',
-				Overwrite: true
-			})
-		);
-		vi.stubEnv('LAMBDA_SSM_PARAMETER_NAME', '/prevstat/config');
 
 		const zip = new AdmZip();
 		zip.addFile('index.html', Buffer.from('<html>Integration Test</html>'));
@@ -113,7 +106,16 @@ describe('AWS integration with LocalStack', () => {
 			})
 			.reply(201, { state: 'success' });
 
-		const { handler } = await import('../src/aws-lambda.js');
+		await s3.send(
+			new PutObjectCommand({
+				Bucket: bucketName,
+				Key: 'config.json',
+				Body: JSON.stringify(configPayload)
+			})
+		);
+		vi.stubEnv('LAMBDA_S3_CONFIG_BUCKET', bucketName);
+		vi.stubEnv('LAMBDA_S3_CONFIG_KEY', 'config.json');
+		const handler = await createLambdaHandler();
 
 		const sqsEvent = {
 			Records: [
