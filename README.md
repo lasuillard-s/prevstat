@@ -39,7 +39,7 @@ sequenceDiagram
   lambda ->> lambda: Generate signed cookies
   lambda ->> cloudfront: Return redirect to asset with signed cookies
   cloudfront ->> browser: Forward origin response
-  browser ->> browser: Access asset with signed cookies
+  browser ->> cloudfront: Request asset with signed cookies
   cloudfront ->> cloudfront: Validate signed cookies again
   cloudfront ->> browser: Serve asset if signed cookies are valid
 ```

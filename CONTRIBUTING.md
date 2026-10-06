@@ -8,7 +8,7 @@ Please report issues in our [GitHub repository](https://github.com/lasuillard-s/
 
 ## 🏗️ Project overview
 
-This project is a GitHub App built with [Probot](https://probot.github.io/) and TypeScript. It watches your repository for workflow completion and download artifacts to host temporarily on Amazon S3 and serve them via CloudFront so that you can view them in your browser.
+This project is a GitHub App built with [Probot](https://probot.github.io/) and TypeScript. It watches your repository for workflow completion and downloads artifacts to host temporarily on Amazon S3 and serve them via CloudFront so that you can view them in your browser.
 
 ```mermaid
 sequenceDiagram
@@ -17,10 +17,11 @@ sequenceDiagram
   participant lambda as Lambda
   participant sqs as SQS
 
-  github ->> cloudfront: Webhook events
-  cloudfront ->> lambda: Call event handler
-  cloudfront ->> github: ACK
+  github ->> cloudfront: Webhook event
+  cloudfront ->> lambda: Forward webhook
   lambda ->> sqs: Enqueue message
+  lambda ->> cloudfront: Return ACK
+  cloudfront ->> github: Forward ACK
   sqs ->> lambda: Trigger queue processing
   lambda ->> github: Update status with URL
 ```
