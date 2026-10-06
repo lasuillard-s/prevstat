@@ -22,6 +22,7 @@ describe('AppConfig', () => {
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'test-client-id',
 			GITHUB_CLIENT_SECRET: 'test-client-secret',
+			ALLOWED_PRINCIPALS: ['*'],
 			CLOUDFRONT_DOMAIN: 'test.cloudfront.net',
 			CLOUDFRONT_PRIVATE_KEY: 'test-private-key',
 			CLOUDFRONT_KEY_PAIR_ID: 'test-key-pair-id',
@@ -38,10 +39,13 @@ describe('AppConfig', () => {
 		// Arrange
 		vi.stubEnv('GITHUB_CLIENT_ID', 'custom-client-id');
 		vi.stubEnv('GITHUB_CLIENT_SECRET', 'custom-client-secret');
+		vi.stubEnv('ALLOWED_PRINCIPALS', 'custom-principal');
 		vi.stubEnv('CLOUDFRONT_DOMAIN', 'https://custom.cloudfront.net');
 		vi.stubEnv('CLOUDFRONT_PRIVATE_KEY', 'custom-private-key');
 		vi.stubEnv('CLOUDFRONT_KEY_PAIR_ID', 'custom-key-pair-id');
+		vi.stubEnv('CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS', '900');
 		vi.stubEnv('JWT_SECRET', 'custom-jwt-secret');
+		vi.stubEnv('JWT_EXPIRATION_SECONDS', '300');
 		vi.stubEnv('S3_BUCKET_NAME', 'custom-bucket');
 		vi.stubEnv('SQS_QUEUE_URL', 'https://sqs.us-east-1.amazonaws.com/123456789012/custom-queue');
 		vi.stubEnv('ARTIFACT_PATTERNS', 'custom/repo:*:*');
@@ -51,10 +55,13 @@ describe('AppConfig', () => {
 		expect(config).toMatchObject({
 			GITHUB_CLIENT_ID: 'custom-client-id',
 			GITHUB_CLIENT_SECRET: 'custom-client-secret',
+			ALLOWED_PRINCIPALS: ['custom-principal'],
 			CLOUDFRONT_DOMAIN: 'custom.cloudfront.net',
 			CLOUDFRONT_PRIVATE_KEY: 'custom-private-key',
 			CLOUDFRONT_KEY_PAIR_ID: 'custom-key-pair-id',
+			CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: 900,
 			JWT_SECRET: 'custom-jwt-secret',
+			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'custom-bucket',
 			SQS_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/123456789012/custom-queue',
 			ARTIFACT_PATTERNS: ['custom/repo:*:*']
