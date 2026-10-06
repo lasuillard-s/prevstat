@@ -118,6 +118,29 @@ export class ArtifactProcessor {
 	}
 
 	/**
+	 * Processes a batch of SQS records concurrently and accumulates any batch item failures.
+	 * @param records Array of SQS records to process
+	 * @returns Array of failed batch item identifiers
+	 */
+	async processBatch(records: SQSRecord[]): Promise<BatchItemFailure[]> {
+		const results = await Promise.all(
+			records.map(async (record) => {
+				try {
+					await this.processRecord(record);
+					return null;
+				} catch (error) {
+					this.probot.log.error(
+						`Failed to process SQS record ${record.messageId}: ${errorToString(error)}`
+					);
+					return { itemIdentifier: record.messageId };
+				}
+			})
+		);
+
+		return results.filter((result): result is BatchItemFailure => result !== null);
+	}
+
+	/**
 	 * Processes an individual SQS record containing artifact processing information.
 	 * Throws an error if any step in processing fails.
 	 * @param record SQS record containing the message body
@@ -146,52 +169,37 @@ export class ArtifactProcessor {
 
 		const workflowRunId = artifact.workflow_run?.id ?? runId;
 		const headSha = artifact.workflow_run?.head_sha;
+		if (!headSha) {
+			throw new Error(
+				`Missing head SHA for artifact ${artifact.name} in workflow run ${workflowRunId}`
+			);
+		}
 
 		this.probot.log.info(
 			`Processing artifact ${artifact.name} (id: ${artifact.id}) for ${owner}/${repo} workflow run ${workflowRunId}`
 		);
 
-		const path = buildArtifactPath(
-			visibility,
-			owner,
-			repo,
-			workflowRunId,
-			artifact.name,
-			'index.html'
-		);
-		const targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
-
 		const downloader = new ArtifactDownloader(octokit);
 
 		try {
-			const zipBuffer = await downloader.download(owner, repo, artifact.id);
-			await this.uploader.upload(zipBuffer, {
+			const safeZip = await downloader.download(owner, repo, artifact.id);
+			const shallowestIndexHtml = safeZip.findShallowestEntry('**/index.html');
+			const path = buildArtifactPath(
+				visibility,
+				owner,
+				repo,
+				workflowRunId,
+				artifact.name,
+				shallowestIndexHtml?.entryName ?? 'index.html'
+			);
+			const targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
+			await this.uploader.upload(safeZip, {
 				artifactName: artifact.name,
 				visibility,
 				owner,
 				repo,
 				workflowRunId
 			});
-		} catch (error) {
-			if (headSha) {
-				await octokit.rest.checks.create({
-					owner,
-					repo,
-					name: `${APP_NAME} / ${artifact.name}`,
-					head_sha: headSha,
-					status: 'completed',
-					conclusion: 'failure',
-					details_url: targetUrl,
-					output: {
-						title: `Artifact: ${artifact.name}`,
-						summary: `Failed to upload artifact ${artifact.name} to S3.`
-					}
-				});
-			}
-			throw error;
-		}
-
-		if (headSha) {
 			await octokit.rest.repos.createCommitStatus({
 				owner,
 				repo,
@@ -201,29 +209,21 @@ export class ArtifactProcessor {
 				description: `Successfully uploaded artifact ${artifact.name} to S3.`,
 				context: `${APP_NAME} / ${artifact.name}`
 			});
-		}
-	}
-
-	/**
-	 * Processes a batch of SQS records concurrently and accumulates any batch item failures.
-	 * @param records Array of SQS records to process
-	 * @returns Array of failed batch item identifiers
-	 */
-	async processBatch(records: SQSRecord[]): Promise<BatchItemFailure[]> {
-		const results = await Promise.all(
-			records.map(async (record) => {
-				try {
-					await this.processRecord(record);
-					return null;
-				} catch (error) {
-					this.probot.log.error(
-						`Failed to process SQS record ${record.messageId}: ${errorToString(error)}`
-					);
-					return { itemIdentifier: record.messageId };
+		} catch (error) {
+			await octokit.rest.checks.create({
+				owner,
+				repo,
+				name: `${APP_NAME} / ${artifact.name}`,
+				head_sha: headSha,
+				status: 'completed',
+				conclusion: 'failure',
+				details_url: undefined,
+				output: {
+					title: `Artifact: ${artifact.name}`,
+					summary: `Failed to upload artifact ${artifact.name} to S3.`
 				}
-			})
-		);
-
-		return results.filter((result): result is BatchItemFailure => result !== null);
+			});
+			throw error;
+		}
 	}
 }
