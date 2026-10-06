@@ -75,6 +75,9 @@ export async function createApp(
 			throw new Error('Failed to load configuration', { cause: error });
 		}
 	}
+	if (!setupProbot) {
+		setupProbot = setupProbotApp(config, app.locals.sqsClient);
+	}
 
 	// Extend app locals context
 	app.locals.probot = probot;
@@ -83,7 +86,7 @@ export async function createApp(
 	// Middleware
 	app.use(originVerificationMiddleware);
 	app.use(
-		await createNodeMiddleware(setupProbot ?? setupProbotApp(config, app.locals.sqsClient), {
+		await createNodeMiddleware(setupProbot, {
 			probot,
 			webhooksPath: '/api/github/webhooks'
 		})
