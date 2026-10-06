@@ -1,12 +1,14 @@
 locals {
-  # CodeBuild source
-  source_s3_prefix = "source/"
-  source_s3_key    = "${local.source_s3_prefix}source.zip"
+  # Application source
+  source_filename  = "source.zip"
+  source_hash      = data.archive_file.source_zip.output_md5
+  source_s3_prefix = "${local.source_hash}/"
+  source_s3_key    = "${local.source_s3_prefix}${local.source_filename}"
 
-  # Codebuild build artifact
-  build_artifact_name = "dist.zip"
-  artifacts_s3_prefix = "artifacts/"
-  artifacts_s3_key    = "${local.artifacts_s3_prefix}${local.build_artifact_name}"
+  # Build artifact
+  dist_filename  = "dist.zip"
+  dist_s3_prefix = "${local.source_hash}/"
+  dist_s3_key    = "${local.dist_s3_prefix}${local.dist_filename}"
 }
 
 module "codebuild_artifacts" {
@@ -15,6 +17,24 @@ module "codebuild_artifacts" {
 
   bucket_prefix = "${var.app_name}-codebuild-artifact-"
   force_destroy = true
+
+  control_object_ownership = true
+  object_ownership         = "BucketOwnerEnforced"
+
+  versioning = {
+    enabled = false
+  }
+
+  lifecycle_rule = [
+    {
+      id      = "delete-objects-after-7-days"
+      enabled = true
+
+      expiration = {
+        days = 7
+      }
+    }
+  ]
 }
 
 resource "aws_iam_role" "codebuild_role" {
@@ -35,7 +55,7 @@ resource "aws_iam_role" "codebuild_role" {
 #       list all files we want to include in the zip file.
 data "archive_file" "source_zip" {
   type        = "zip"
-  output_path = "${path.module}/source.zip"
+  output_path = "${path.module}/${local.source_filename}"
 
   dynamic "source" {
     for_each = setunion(
@@ -129,10 +149,10 @@ resource "aws_codebuild_project" "build" {
   artifacts {
     type           = "S3"
     location       = module.codebuild_artifacts.s3_bucket_id
-    path           = local.artifacts_s3_prefix
+    path           = local.dist_s3_prefix
     namespace_type = "NONE" # Don't create a subdirectory for the build artifact in the S3 bucket
     packaging      = "ZIP"
-    name           = local.build_artifact_name
+    name           = local.dist_filename
   }
 
   environment {
@@ -155,7 +175,7 @@ resource "aws_codebuild_project" "build" {
 resource "terraform_data" "build_trigger" {
   depends_on = [aws_codebuild_project.build, aws_s3_object.source_zip]
 
-  input = aws_s3_object.source_zip.etag
+  input = local.source_hash
 
   lifecycle {
     action_trigger {
