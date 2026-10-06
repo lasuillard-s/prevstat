@@ -124,6 +124,11 @@ describe('POST /aws/sqs router', () => {
 			})
 			.get('/repos/my-org/my-repo/actions/artifacts/101/zip')
 			.reply(200, zipBuffer, { 'content-type': 'application/zip' })
+			.get('/repos/my-org/my-repo/actions/runs/12345')
+			.reply(200, {
+				id: 12345,
+				head_sha: 'abcdef123456'
+			})
 			.post('/repos/my-org/my-repo/statuses/abcdef123456', {
 				state: 'success',
 				target_url:
@@ -212,6 +217,11 @@ describe('POST /aws/sqs router', () => {
 					head_sha: 'abcdef123456'
 				}
 			})
+			.get('/repos/my-org/my-repo/actions/runs/12345')
+			.reply(200, {
+				id: 12345,
+				head_sha: 'abcdef123456'
+			})
 			.get('/repos/my-org/my-repo/actions/artifacts/101/zip')
 			.reply(500, 'Download failed')
 			.post('/repos/my-org/my-repo/check-runs', (body) => {
@@ -238,8 +248,8 @@ describe('POST /aws/sqs router', () => {
 		const json = await response.json();
 		expect(response.status).toBe(200);
 		expect(json).toEqual({ batchItemFailures: [{ itemIdentifier: 'msg-1' }] });
-		expect(mock.isDone()).toBe(true);
 		expect(mock.pendingMocks()).toStrictEqual([]);
+		expect(mock.isDone()).toBe(true);
 	});
 
 	it('creates check run with failure conclusion when zip is corrupt', async () => {
@@ -256,6 +266,11 @@ describe('POST /aws/sqs router', () => {
 					id: 12345,
 					head_sha: 'abcdef123456'
 				}
+			})
+			.get('/repos/my-org/my-repo/actions/runs/12345')
+			.reply(200, {
+				id: 12345,
+				head_sha: 'abcdef123456'
 			})
 			.get('/repos/my-org/my-repo/actions/artifacts/101/zip')
 			.reply(200, Buffer.from('invalid-zip-bytes'))
