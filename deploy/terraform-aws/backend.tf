@@ -75,9 +75,18 @@ data "aws_iam_policy_document" "lambda_function" {
   }
 }
 
+resource "time_sleep" "wait_for_build" {
+  depends_on      = [terraform_data.build_trigger]
+  create_duration = "5s"
+
+  triggers = {
+    build = terraform_data.build_trigger.output
+  }
+}
+
 # https://registry.terraform.io/modules/terraform-aws-modules/lambda/aws/latest
 module "lambda_function" {
-  depends_on = [terraform_data.build_trigger]
+  depends_on = [time_sleep.wait_for_build]
 
   source  = "terraform-aws-modules/lambda/aws"
   version = "~> 8.0"
