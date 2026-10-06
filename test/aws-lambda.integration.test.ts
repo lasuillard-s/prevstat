@@ -11,6 +11,7 @@ import nock from 'nock';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, vi } from 'vitest';
+import { createLambdaHandler } from '../src/app.js';
 import { test as it } from './helpers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -114,7 +115,7 @@ describe('AWS integration with LocalStack', () => {
 		);
 		vi.stubEnv('LAMBDA_S3_CONFIG_BUCKET', bucketName);
 		vi.stubEnv('LAMBDA_S3_CONFIG_KEY', 'config.json');
-		const { handler } = await import('../src/aws-lambda.js');
+		const handler = await createLambdaHandler();
 
 		const sqsEvent = {
 			Records: [
