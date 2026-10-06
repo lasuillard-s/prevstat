@@ -1,4 +1,5 @@
 import AdmZip from 'adm-zip';
+import { minimatch } from 'minimatch';
 import path from 'node:path';
 
 /**
@@ -26,23 +27,28 @@ export class SafeAdmZip {
 			.filter((entry) => entry !== null);
 	}
 
-	depthOfEntry(entryName: string): number {
-		return entryName.split('/').length;
-	}
-
-	findShallowestEntry(entryName: string): AdmZip.IZipEntry | null {
+	findShallowestEntry(entryNamePattern: string): AdmZip.IZipEntry | null {
 		let shallowest: AdmZip.IZipEntry | null = null;
 		for (const entry of this.getEntries()) {
-			const depth = this.depthOfEntry(entry.entryName);
+			const depth = depthOfEntry(entry.entryName);
 			if (
-				entry.entryName === entryName &&
-				(shallowest === null || depth < this.depthOfEntry(shallowest.entryName))
+				minimatch(entry.entryName, entryNamePattern) &&
+				(shallowest === null || depth < depthOfEntry(shallowest.entryName))
 			) {
 				shallowest = entry;
 			}
 		}
 		return shallowest;
 	}
+}
+
+/**
+ * Returns the depth of a given zip entry based on the number of path segments.
+ * @param entryName The name of the zip entry whose depth is to be calculated.
+ * @returns The depth of the zip entry based on the number of path segments.
+ */
+function depthOfEntry(entryName: string): number {
+	return entryName.split('/').length;
 }
 
 /**
