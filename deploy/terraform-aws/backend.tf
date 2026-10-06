@@ -111,7 +111,9 @@ module "lambda_function" {
     var.variables, // User-provided variables will OVERRIDE
   )
 
-  timeout = 60
+  memory_size            = 256 # MB
+  ephemeral_storage_size = 512 # MB
+  timeout                = 180 # Seconds
 
   // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
