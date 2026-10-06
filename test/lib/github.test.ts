@@ -3,12 +3,18 @@ import nock from 'nock';
 import type { Context } from 'probot';
 import { ProbotOctokit } from 'probot';
 import { describe, expect, it, vi } from 'vitest';
-import {
-	ArtifactDownloader,
-	ArtifactUploader,
-	Repo,
-	sanitizeZipEntryPath
-} from '../../src/lib/github.js';
+import { ArtifactDownloader, ArtifactUploader, Repo } from '../../src/lib/github.js';
+import { SafeAdmZip } from '../../src/utils/zip.js';
+
+// Helper function to create an AdmZip instance from a set of files
+// eslint-disable-next-line jsdoc/require-jsdoc
+function createZip(files: Record<string, Buffer>): AdmZip {
+	const zip = new AdmZip();
+	for (const [name, content] of Object.entries(files)) {
+		zip.addFile(name, content);
+	}
+	return zip;
+}
 
 describe('Repo', () => {
 	it('instantiates and provides owner and repo', () => {
@@ -100,14 +106,20 @@ describe('ArtifactDownloader', () => {
 	});
 
 	it('downloads and returns artifact zip buffer on success', async () => {
+		const zip = createZip({
+			'index.html': Buffer.from('hello')
+		});
 		const mock = nock('https://api.github.com')
 			.get('/repos/owner/repo/actions/artifacts/101/zip')
-			.reply(200, Buffer.from([1, 2, 3]));
+			.reply(200, zip.toBuffer(), { 'Content-Type': 'application/zip' });
 
 		const downloader = new ArtifactDownloader(octokit);
 		const result = await downloader.download('owner', 'repo', 101);
 
-		expect(result).toEqual(Buffer.from([1, 2, 3]));
+		expect(
+			// @ts-expect-error: Accessing private property for test purposes
+			result.zip.toBuffer()
+		).toEqual(zip.toBuffer());
 		expect(mock.isDone()).toBe(true);
 		expect(mock.pendingMocks()).toStrictEqual([]);
 	});
@@ -126,20 +138,22 @@ describe('ArtifactDownloader', () => {
 
 describe('ArtifactUploader', () => {
 	it('uploads valid files and skips unsafe/traversal entries', async () => {
-		const zip = new AdmZip();
-		zip.addFile('index.html', Buffer.from('hello'));
-		zip.addFile('assets\\app.js', Buffer.from('console.log(1)'));
-		zip.addFile('evil.html', Buffer.from('evil'));
-		const entries = zip.getEntries();
-		entries[2].entryName = '../../evil.html';
-		const zipBuffer = zip.toBuffer();
+		const zip = createZip({
+			'index.html': Buffer.from('hello'),
+			'assets\\app.js': Buffer.from('console.log(1)'),
+			'evil.html': Buffer.from('evil')
+		});
 
+		// Mark the third entry as a traversal path to simulate an unsafe entry
+		zip.getEntries()[2].entryName = '../../evil.html';
+
+		const safeZip = new SafeAdmZip(zip);
 		const mockS3Client = {
 			send: vi.fn().mockResolvedValue({})
 		};
 
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
-		await uploader.upload(zipBuffer, {
+		await uploader.upload(safeZip, {
 			owner: 'owner',
 			repo: 'repo',
 			workflowRunId: 123,
@@ -164,34 +178,20 @@ describe('ArtifactUploader', () => {
 		);
 	});
 
-	it('throws if buffer is not a valid zip', async () => {
-		const mockS3Client = { send: vi.fn() };
-
-		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
-
-		await expect(
-			uploader.upload(Buffer.from('not-a-zip'), {
-				owner: 'owner',
-				repo: 'repo',
-				workflowRunId: 123,
-				artifactName: 'my-artifact',
-				visibility: 'private'
-			})
-		).rejects.toThrow();
-	});
-
 	it('throws if S3 client fails to upload a file', async () => {
-		const zip = new AdmZip();
-		zip.addFile('index.html', Buffer.from('hello'));
-		const zipBuffer = zip.toBuffer();
-
+		const safeZip = new SafeAdmZip(
+			createZip({
+				'index.html': Buffer.from('hello')
+			})
+		);
 		const mockS3Client = {
 			send: vi.fn().mockRejectedValue(new Error('S3 Access Denied'))
 		};
 
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
+
 		await expect(
-			uploader.upload(zipBuffer, {
+			uploader.upload(safeZip, {
 				owner: 'owner',
 				repo: 'repo',
 				workflowRunId: 123,
@@ -199,27 +199,5 @@ describe('ArtifactUploader', () => {
 				visibility: 'private'
 			})
 		).rejects.toThrow('S3 Access Denied');
-	});
-});
-
-describe('sanitizeZipEntryPath', () => {
-	it('preserves valid relative paths and normalizes backslashes and leading slashes', () => {
-		expect(sanitizeZipEntryPath('index.html')).toBe('index.html');
-		expect(sanitizeZipEntryPath('assets/main.css')).toBe('assets/main.css');
-		expect(sanitizeZipEntryPath('nested/dir/app.js')).toBe('nested/dir/app.js');
-		expect(sanitizeZipEntryPath('assets\\style.css')).toBe('assets/style.css');
-		expect(sanitizeZipEntryPath('/index.html')).toBe('index.html');
-		expect(sanitizeZipEntryPath('///assets/style.css')).toBe('assets/style.css');
-		expect(sanitizeZipEntryPath('./assets/./style.css')).toBe('assets/style.css');
-	});
-
-	it('returns null for path traversal or invalid paths', () => {
-		expect(sanitizeZipEntryPath('..')).toBeNull();
-		expect(sanitizeZipEntryPath('../index.html')).toBeNull();
-		expect(sanitizeZipEntryPath('../../etc/passwd')).toBeNull();
-		expect(sanitizeZipEntryPath('nested/../../etc/passwd')).toBeNull();
-		expect(sanitizeZipEntryPath('.')).toBeNull();
-		expect(sanitizeZipEntryPath('')).toBeNull();
-		expect(sanitizeZipEntryPath('///')).toBeNull();
 	});
 });

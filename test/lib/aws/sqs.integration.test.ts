@@ -147,6 +147,11 @@ describe('AWS SQS & S3 Integration with LocalStack', () => {
 						head_sha: 'abcdef123456'
 					}
 				})
+				.get('/repos/my-org/my-repo/actions/runs/12345')
+				.reply(200, {
+					id: 12345,
+					head_sha: 'abcdef123456'
+				})
 				.get('/repos/my-org/my-repo/actions/artifacts/101/zip')
 				.reply(200, zipBuffer, { 'content-type': 'application/zip' })
 				.post('/repos/my-org/my-repo/statuses/abcdef123456', {
