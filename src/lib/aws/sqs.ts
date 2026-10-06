@@ -183,7 +183,9 @@ export class ArtifactProcessor {
 		);
 
 		const downloader = new ArtifactDownloader(octokit);
+		let targetUrl: string;
 
+		// Download, find the shallowest index.html, and upload the artifact to S3
 		try {
 			const safeZip = await downloader.download(owner, repo, artifact.id);
 			const shallowestIndexHtml = safeZip.findShallowestEntry('**/index.html');
@@ -195,22 +197,13 @@ export class ArtifactProcessor {
 				artifact.name,
 				shallowestIndexHtml?.entryName ?? 'index.html'
 			);
-			const targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
+			targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
 			await this.uploader.upload(safeZip, {
 				artifactName: artifact.name,
 				visibility,
 				owner,
 				repo,
 				workflowRunId
-			});
-			await octokit.rest.repos.createCommitStatus({
-				owner,
-				repo,
-				sha: headSha,
-				state: 'success',
-				target_url: targetUrl,
-				description: `Successfully uploaded artifact ${artifact.name} to S3.`,
-				context: `${APP_NAME} / ${artifact.name}`
 			});
 		} catch (error) {
 			await octokit.rest.checks.create({
@@ -228,5 +221,16 @@ export class ArtifactProcessor {
 			});
 			throw error;
 		}
+
+		// Everything succeeded, update the commit status to success
+		await octokit.rest.repos.createCommitStatus({
+			owner,
+			repo,
+			sha: headSha,
+			state: 'success',
+			target_url: targetUrl,
+			description: `Successfully uploaded artifact ${artifact.name} to S3.`,
+			context: `${APP_NAME} / ${artifact.name}`
+		});
 	}
 }
