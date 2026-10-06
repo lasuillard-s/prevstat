@@ -175,7 +175,7 @@ resource "aws_codebuild_project" "build" {
 resource "terraform_data" "build_trigger" {
   depends_on = [aws_codebuild_project.build, aws_s3_object.source_zip]
 
-  input = local.source_hash
+  input = local.dist_s3_key
 
   lifecycle {
     action_trigger {
