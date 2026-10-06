@@ -32,7 +32,7 @@ export class SafeAdmZip {
 		for (const entry of this.getEntries()) {
 			const depth = depthOfEntry(entry.entryName);
 			if (
-				minimatch(entry.entryName, entryNamePattern) &&
+				minimatch(entry.entryName, entryNamePattern, { dot: true }) &&
 				(shallowest === null || depth < depthOfEntry(shallowest.entryName))
 			) {
 				shallowest = entry;

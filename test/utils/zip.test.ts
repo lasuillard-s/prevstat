@@ -49,13 +49,23 @@ describe('SafeAdmZip', () => {
 			const zip = createZip({
 				'assets/main.css': Buffer.from('body {}'),
 				'assets/style.css': Buffer.from('body {}'),
-				'nested/index.html': Buffer.from('<html></html>'),
+				'playwright-report/index.html': Buffer.from('<html></html>'),
 				'nested/dir/index.html': Buffer.from('<html></html>')
 			});
 			const safeZip = new SafeAdmZip(zip);
 			const shallowest = safeZip.findShallowestEntry('**/*.html');
 			expect(shallowest).not.toBeNull();
-			expect(shallowest?.entryName).toBe('nested/index.html');
+			expect(shallowest?.entryName).toBe('playwright-report/index.html');
+		});
+
+		it('should support dot-prefixed paths', () => {
+			const zip = createZip({
+				'.hidden/index.html': Buffer.from('<html></html>'),
+				'assets/main.css': Buffer.from('body {}')
+			});
+			const safeZip = new SafeAdmZip(zip);
+			const shallowest = safeZip.findShallowestEntry('**/*.html');
+			expect(shallowest?.entryName).toBe('.hidden/index.html');
 		});
 	});
 });
