@@ -3,6 +3,11 @@ import * as z from 'zod';
 export const AppConfig = z.object({
 	GITHUB_CLIENT_ID: z.string().describe('GitHub OAuth App Client ID'),
 	GITHUB_CLIENT_SECRET: z.string().describe('GitHub OAuth App Client Secret'),
+	// Access control
+	ALLOWED_PRINCIPALS: z
+		.string()
+		.default('*')
+		.transform((val) => parseCsv(val).map((principal) => principal.toLowerCase())),
 	// AWS related configuration
 	CLOUDFRONT_DOMAIN: z
 		.string()
@@ -10,7 +15,8 @@ export const AppConfig = z.object({
 		.describe('CloudFront domain name for the app (e.g. blabblah.cloudfront.net)'),
 	CLOUDFRONT_PRIVATE_KEY: z.string().describe('CloudFront private key for the cookie signing'),
 	CLOUDFRONT_KEY_PAIR_ID: z.string().describe('CloudFront key pair ID for the cookie signing'),
-	CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: z
+	CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: z.coerce
+		.number()
 		.int()
 		.describe('Expiration time for the signed cookie in seconds. Default is 15 minutes.')
 		.default(15 * 60), // Default to 15 minutes
@@ -29,7 +35,8 @@ export const AppConfig = z.object({
 		.describe(
 			'Secret for JWT used for signing states in the GitHub OAuth flow. Used to prevent CSRF attacks.'
 		),
-	JWT_EXPIRATION_SECONDS: z
+	JWT_EXPIRATION_SECONDS: z.coerce
+		.number()
 		.int()
 		.describe('Expiration time for the JWT token in seconds. Default is 5 minutes.')
 		.default(5 * 60),
@@ -47,3 +54,18 @@ export const AppConfig = z.object({
 		)
 });
 export type AppConfig = z.infer<typeof AppConfig>;
+
+/**
+ * Parse a comma-separated string into an array of trimmed strings.
+ * @param value Comma-separated string
+ * @returns Array of string
+ */
+function parseCsv(value: string): string[] {
+	const normalizedValue = value.trim();
+	return normalizedValue
+		? normalizedValue
+				.split(',')
+				.map((item) => item.trim())
+				.filter(Boolean)
+		: [];
+}

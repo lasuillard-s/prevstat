@@ -27,6 +27,7 @@ describe('GET /api/auth router', () => {
 		appConfig = {
 			GITHUB_CLIENT_ID: 'client-id',
 			GITHUB_CLIENT_SECRET: 'client-secret',
+			ALLOWED_PRINCIPALS: ['*'],
 			CLOUDFRONT_DOMAIN: 'assets.example.com',
 			CLOUDFRONT_PRIVATE_KEY: 'key',
 			CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',

@@ -45,7 +45,8 @@ describe('WorkflowRunCompletedHandler (Integration with LocalStack)', () => {
 			JWT_EXPIRATION_SECONDS: 300,
 			S3_BUCKET_NAME: 'test-bucket',
 			SQS_QUEUE_URL: queueUrl,
-			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*']
+			ARTIFACT_PATTERNS: ['my-org/my-repo:.github/workflows/ci.yaml:build-output*'],
+			ALLOWED_PRINCIPALS: ['*']
 		};
 	});
 
