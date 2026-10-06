@@ -16,6 +16,7 @@ sequenceDiagram
   participant cloudfront as CloudFront
   participant lambda as Lambda
   participant sqs as SQS
+  participant s3 as S3
 
   github ->> cloudfront: Webhook event
   cloudfront ->> lambda: Forward webhook
@@ -23,6 +24,8 @@ sequenceDiagram
   lambda ->> cloudfront: Return ACK
   cloudfront ->> github: Forward ACK
   sqs ->> lambda: Trigger queue processing
+  lambda ->> github: Download artifact
+  lambda ->> s3: Upload artifact
   lambda ->> github: Update status with URL
 ```
 
