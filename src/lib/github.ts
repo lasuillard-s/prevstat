@@ -139,7 +139,12 @@ export class ArtifactUploader {
 	 */
 	async upload(zip: SafeAdmZip, target: ArtifactUploadTarget): Promise<void> {
 		const { owner, repo, workflowRunId, artifactName, visibility } = target;
-		const s3Commands: Array<PutObjectCommand> = [];
+		type UploadEntry = {
+			key: string;
+			entry: AdmZip.IZipEntry;
+			contentType: string;
+		};
+		const uploadEntries: UploadEntry[] = [];
 
 		for (const entry of zip.getEntries()) {
 			if (entry.isDirectory) continue;
@@ -157,21 +162,27 @@ export class ArtifactUploader {
 			// Remove leading slash from the path to form the S3 key
 			const s3Key = path.startsWith('/') ? path.substring(1) : path;
 
-			s3Commands.push(
-				new PutObjectCommand({
-					Bucket: this.bucketName,
-					Key: s3Key,
-					Body: entry.getData(),
-					ContentType: contentType
-				})
-			);
+			uploadEntries.push({
+				key: s3Key,
+				entry,
+				contentType
+			});
 		}
 
 		// Upload S3 commands in chunks to avoid overwhelming the S3 service
 		const chunkSize = 50;
-		for (let i = 0; i < s3Commands.length; i += chunkSize) {
+		for (let i = 0; i < uploadEntries.length; i += chunkSize) {
 			await Promise.all(
-				s3Commands.slice(i, i + chunkSize).map((command) => this.s3Client.send(command))
+				uploadEntries.slice(i, i + chunkSize).map(({ key, entry, contentType }) =>
+					this.s3Client.send(
+						new PutObjectCommand({
+							Bucket: this.bucketName,
+							Key: key,
+							Body: entry.getData(),
+							ContentType: contentType
+						})
+					)
+				)
 			);
 		}
 	}
