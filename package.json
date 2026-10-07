@@ -43,7 +43,7 @@
 		"mime-types": "3.0.2",
 		"minimatch": "10.2.6",
 		"probot": "14.3.2",
-		"zod": "4.4.3"
+		"zod": "4.6.5"
 	},
 	"devEngines": {
 		"runtime": {
