@@ -114,9 +114,9 @@ module "lambda_function" {
     var.variables, // User-provided variables will OVERRIDE
   )
 
-  memory_size            = 256 # MB
+  memory_size            = 512 # MB
   ephemeral_storage_size = 512 # MB
-  timeout                = 120 # Seconds
+  timeout                = 60 # Seconds
 
   // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
@@ -147,7 +147,7 @@ module "task_queue" {
 
   # 6x of Lambda timeout (AWS recommendation)
   # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-lambda-function-trigger.html
-  visibility_timeout_seconds = 720
+  visibility_timeout_seconds = 360
 
   create_dlq                    = true
   dlq_message_retention_seconds = 14 * 24 * 60 * 60 # 14 days in seconds
