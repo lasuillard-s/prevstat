@@ -122,3 +122,26 @@ module "cdn" {
     minimum_protocol_version       = "TLSv1" # Default certificate only supports TLSv1 and above
   }
 }
+
+resource "terraform_data" "invalidation_trigger" {
+  depends_on = [module.cdn]
+
+  input = aws_s3_object.error_403.etag
+
+  lifecycle {
+    action_trigger {
+      events  = [after_update]
+      actions = [action.aws_cloudfront_create_invalidation.custom_error_responses]
+    }
+  }
+}
+
+action "aws_cloudfront_create_invalidation" "custom_error_responses" {
+  config {
+    distribution_id = module.cdn.cloudfront_distribution_id
+    paths = [
+      "/${local.error_403_s3_key}",
+    ]
+    timeout = 900 # 15 minutes
+  }
+}
