@@ -33,6 +33,12 @@ module "codebuild_artifacts" {
       expiration = {
         days = 7
       }
+    },
+    {
+      id      = "abort-incomplete-multipart-uploads"
+      enabled = true
+
+      abort_incomplete_multipart_upload_days = 1
     }
   ]
 }

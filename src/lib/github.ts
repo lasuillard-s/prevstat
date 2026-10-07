@@ -1,8 +1,11 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import AdmZip from 'adm-zip';
+import { S3Client } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import mime from 'mime-types';
+import { minimatch } from 'minimatch';
+import { Readable } from 'node:stream';
 import type { Context, ProbotOctokit } from 'probot';
-import { SafeAdmZip } from '../utils/zip.js';
+import unzipper from 'unzipper';
+import { sanitizeZipEntryPath } from '../utils/zip.js';
 import { buildArtifactPath } from './url.js';
 
 /**
@@ -92,22 +95,23 @@ export class ArtifactDownloader {
 	constructor(private readonly octokit: ProbotOctokit) {}
 
 	/**
-	 * Downloads an artifact zip archive from GitHub.
+	 * Downloads an artifact zip archive as a readable stream.
 	 * @param owner Repository owner
 	 * @param repo Repository name
 	 * @param artifactId GitHub artifact ID
-	 * @returns A safe wrapper around the downloaded zip archive
+	 * @returns A readable stream for the downloaded zip archive
 	 */
-	async download(owner: string, repo: string, artifactId: number): Promise<SafeAdmZip> {
-		const download = await this.octokit.rest.actions.downloadArtifact({
+	async downloadStream(owner: string, repo: string, artifactId: number): Promise<Readable> {
+		const response = await this.octokit.rest.actions.downloadArtifact({
 			owner,
 			repo,
 			artifact_id: artifactId,
-			archive_format: 'zip'
+			archive_format: 'zip',
+			request: {
+				parseSuccessResponseBody: false
+			}
 		});
-		const buffer = Buffer.from(download.data as ArrayBuffer);
-		const zip = new AdmZip(buffer);
-		return new SafeAdmZip(zip);
+		return Readable.fromWeb(response.data as import('node:stream/web').ReadableStream);
 	}
 }
 
@@ -132,58 +136,110 @@ export class ArtifactUploader {
 	) {}
 
 	/**
-	 * Unzips artifact archive in-memory and uploads each file to S3.
-	 * Skips directory entries and unsafe paths.
-	 * @param zip The SafeAdmZip instance representing the artifact zip archive
+	 * Parses zip stream on-the-fly and uploads each file sequentially to S3.
+	 * Skips directory entries and unsafe paths. Tracks and returns the path to the shallowest index.html found.
+	 * @param zipStream The readable stream representing the artifact zip archive
 	 * @param target Target repository and artifact metadata
+	 * @returns The path to the shallowest index.html found in the archive
 	 */
-	async upload(zip: SafeAdmZip, target: ArtifactUploadTarget): Promise<void> {
+	async upload(zipStream: Readable, target: ArtifactUploadTarget): Promise<string | undefined> {
 		const { owner, repo, workflowRunId, artifactName, visibility } = target;
-		type UploadEntry = {
-			key: string;
-			entry: AdmZip.IZipEntry;
-			contentType: string;
+
+		let shallowestIndexHtml: string | undefined;
+		let shallowestDepth = Infinity;
+
+		const parser = unzipper.Parse({ forceStream: true });
+
+		let activeEntry: unzipper.Entry | undefined;
+		let activeUpload: Upload | undefined;
+		let streamError: Error | undefined;
+
+		const cleanup = (err?: Error) => {
+			if (err && !streamError) {
+				streamError = err;
+			}
+			const errorToPropagate = streamError ?? err;
+			if (activeEntry && !activeEntry.destroyed) {
+				activeEntry.destroy(errorToPropagate);
+			}
+			if (activeUpload) {
+				// Fire-and-forget because zipStream.on('error', ...) callback is synchronous
+				activeUpload.abort().catch(() => {});
+			}
+			if (!parser.destroyed) {
+				parser.destroy(errorToPropagate);
+			}
+			if (!zipStream.destroyed) {
+				zipStream.destroy(errorToPropagate);
+			}
 		};
-		const uploadEntries: UploadEntry[] = [];
 
-		for (const entry of zip.getEntries()) {
-			if (entry.isDirectory) continue;
+		zipStream.on('error', (err) => {
+			cleanup(err);
+		});
 
-			const path = buildArtifactPath(
-				visibility,
-				owner,
-				repo,
-				workflowRunId,
-				artifactName,
-				entry.entryName
-			);
-			const contentType = mime.lookup(entry.entryName) || 'application/octet-stream';
+		try {
+			for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
+				activeEntry = entry;
 
-			// Remove leading slash from the path to form the S3 key
-			const s3Key = path.startsWith('/') ? path.substring(1) : path;
+				if (entry.type === 'Directory') {
+					entry.autodrain();
+					continue;
+				}
 
-			uploadEntries.push({
-				key: s3Key,
-				entry,
-				contentType
-			});
-		}
+				const sanitizedPath = sanitizeZipEntryPath(entry.path);
+				if (!sanitizedPath) {
+					entry.autodrain();
+					continue;
+				}
 
-		// Upload S3 commands in chunks to avoid overwhelming the S3 service
-		const chunkSize = 50;
-		for (let i = 0; i < uploadEntries.length; i += chunkSize) {
-			await Promise.all(
-				uploadEntries.slice(i, i + chunkSize).map(({ key, entry, contentType }) =>
-					this.s3Client.send(
-						new PutObjectCommand({
-							Bucket: this.bucketName,
-							Key: key,
-							Body: entry.getData(),
-							ContentType: contentType
-						})
-					)
-				)
-			);
+				// Update shallowest index.html track
+				if (minimatch(sanitizedPath, '**/index.html', { dot: true })) {
+					const depth = sanitizedPath.split('/').length;
+					if (depth < shallowestDepth) {
+						shallowestDepth = depth;
+						shallowestIndexHtml = sanitizedPath;
+					}
+				}
+
+				const path = buildArtifactPath(
+					visibility,
+					owner,
+					repo,
+					workflowRunId,
+					artifactName,
+					sanitizedPath
+				);
+				const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
+
+				// Remove leading slash from the path to form the S3 key
+				const s3Key = path.startsWith('/') ? path.substring(1) : path;
+
+				const upload = new Upload({
+					client: this.s3Client,
+					params: {
+						Bucket: this.bucketName,
+						Key: s3Key,
+						Body: entry,
+						ContentType: contentType
+					}
+				});
+				activeUpload = upload;
+
+				await upload.done();
+
+				activeUpload = undefined;
+				activeEntry = undefined;
+			}
+
+			return shallowestIndexHtml;
+		} catch (error) {
+			throw streamError ?? (error instanceof Error ? error : new Error(String(error)));
+		} finally {
+			cleanup();
+			if (activeUpload) {
+				await activeUpload.abort().catch(() => {});
+			}
 		}
 	}
 }
