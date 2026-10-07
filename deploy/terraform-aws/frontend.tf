@@ -124,9 +124,10 @@ module "cdn" {
 }
 
 resource "terraform_data" "invalidation_trigger" {
-  depends_on = [module.cdn]
+  depends_on = [module.cdn, aws_s3_object.error_403]
 
-  input = aws_s3_object.error_403.etag
+  # `.etag` is not known at plan time, so we use a hash of the local content instead
+  input = md5(local.error_403_rendered_content)
 
   lifecycle {
     action_trigger {
