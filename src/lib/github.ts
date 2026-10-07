@@ -181,56 +181,55 @@ export class ArtifactUploader {
 		try {
 			for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
 				activeEntry = entry;
-				try {
-					if (entry.type === 'Directory') {
-						entry.autodrain();
-						continue;
-					}
 
-					const sanitizedPath = sanitizeZipEntryPath(entry.path);
-					if (!sanitizedPath) {
-						entry.autodrain();
-						continue;
-					}
-
-					// Update shallowest index.html track
-					if (minimatch(sanitizedPath, '**/index.html', { dot: true })) {
-						const depth = sanitizedPath.split('/').length;
-						if (depth < shallowestDepth) {
-							shallowestDepth = depth;
-							shallowestIndexHtml = sanitizedPath;
-						}
-					}
-
-					const path = buildArtifactPath(
-						visibility,
-						owner,
-						repo,
-						workflowRunId,
-						artifactName,
-						sanitizedPath
-					);
-					const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
-
-					// Remove leading slash from the path to form the S3 key
-					const s3Key = path.startsWith('/') ? path.substring(1) : path;
-
-					const upload = new Upload({
-						client: this.s3Client,
-						params: {
-							Bucket: this.bucketName,
-							Key: s3Key,
-							Body: entry,
-							ContentType: contentType
-						}
-					});
-					activeUpload = upload;
-
-					await upload.done();
-				} finally {
-					activeUpload = undefined;
-					activeEntry = undefined;
+				if (entry.type === 'Directory') {
+					entry.autodrain();
+					continue;
 				}
+
+				const sanitizedPath = sanitizeZipEntryPath(entry.path);
+				if (!sanitizedPath) {
+					entry.autodrain();
+					continue;
+				}
+
+				// Update shallowest index.html track
+				if (minimatch(sanitizedPath, '**/index.html', { dot: true })) {
+					const depth = sanitizedPath.split('/').length;
+					if (depth < shallowestDepth) {
+						shallowestDepth = depth;
+						shallowestIndexHtml = sanitizedPath;
+					}
+				}
+
+				const path = buildArtifactPath(
+					visibility,
+					owner,
+					repo,
+					workflowRunId,
+					artifactName,
+					sanitizedPath
+				);
+				const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
+
+				// Remove leading slash from the path to form the S3 key
+				const s3Key = path.startsWith('/') ? path.substring(1) : path;
+
+				const upload = new Upload({
+					client: this.s3Client,
+					params: {
+						Bucket: this.bucketName,
+						Key: s3Key,
+						Body: entry,
+						ContentType: contentType
+					}
+				});
+				activeUpload = upload;
+
+				await upload.done();
+
+				activeUpload = undefined;
+				activeEntry = undefined;
 			}
 
 			return shallowestIndexHtml;
