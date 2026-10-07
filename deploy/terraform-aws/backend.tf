@@ -149,7 +149,8 @@ module "task_queue" {
   # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-lambda-function-trigger.html
   visibility_timeout_seconds = 720
 
-  create_dlq = true
+  create_dlq                    = true
+  dlq_message_retention_seconds = 14 * 24 * 60 * 60 # 14 days in seconds
   redrive_policy = {
     maxReceiveCount = 5
   }
