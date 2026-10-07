@@ -2,8 +2,14 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import mime from 'mime-types';
 import { minimatch } from 'minimatch';
+import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { Readable } from 'node:stream';
-import type { Context, ProbotOctokit } from 'probot';
+import { pipeline } from 'node:stream/promises';
+import type { Context, Probot, ProbotOctokit } from 'probot';
 import unzipper from 'unzipper';
 import { sanitizeZipEntryPath } from '../utils/zip.js';
 import { buildArtifactPath } from './url.js';
@@ -132,7 +138,8 @@ export interface ArtifactUploadTarget {
 export class ArtifactUploader {
 	constructor(
 		private readonly s3Client: S3Client,
-		private readonly bucketName: string
+		private readonly bucketName: string,
+		private readonly log?: Probot['log']
 	) {}
 
 	/**
@@ -148,48 +155,25 @@ export class ArtifactUploader {
 		let shallowestIndexHtml: string | undefined;
 		let shallowestDepth = Infinity;
 
-		const parser = unzipper.Parse({ forceStream: true });
-
-		let activeEntry: unzipper.Entry | undefined;
+		const tmpFilePath = path.join(os.tmpdir(), `${randomUUID()}.zip`);
 		let activeUpload: Upload | undefined;
-		let streamError: Error | undefined;
-
-		const cleanup = (err?: Error) => {
-			if (err && !streamError) {
-				streamError = err;
-			}
-			const errorToPropagate = streamError ?? err;
-			if (activeEntry && !activeEntry.destroyed) {
-				activeEntry.destroy(errorToPropagate);
-			}
-			if (activeUpload) {
-				// Fire-and-forget because zipStream.on('error', ...) callback is synchronous
-				activeUpload.abort().catch(() => {});
-			}
-			if (!parser.destroyed) {
-				parser.destroy(errorToPropagate);
-			}
-			if (!zipStream.destroyed) {
-				zipStream.destroy(errorToPropagate);
-			}
-		};
-
-		zipStream.on('error', (err) => {
-			cleanup(err);
-		});
 
 		try {
-			for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
-				activeEntry = entry;
+			// Download the entire ZIP stream to disk first to bypass unzipper.Parse() streaming constraints
+			// (such as Zip64 incompatibility and Data Descriptor chunking bugs that cause "unexpected end of file").
+			await pipeline(zipStream, createWriteStream(tmpFilePath));
 
-				if (entry.type === 'Directory') {
-					entry.autodrain();
+			// Parse from disk. This reads the Central Directory at the end of the file, providing flawless
+			// support for Zip64, Data Descriptors, and arbitrary chunking.
+			const directory = await unzipper.Open.file(tmpFilePath);
+
+			for (const file of directory.files) {
+				if (file.type === 'Directory') {
 					continue;
 				}
 
-				const sanitizedPath = sanitizeZipEntryPath(entry.path);
+				const sanitizedPath = sanitizeZipEntryPath(file.path);
 				if (!sanitizedPath) {
-					entry.autodrain();
 					continue;
 				}
 
@@ -202,7 +186,7 @@ export class ArtifactUploader {
 					}
 				}
 
-				const path = buildArtifactPath(
+				const s3Path = buildArtifactPath(
 					visibility,
 					owner,
 					repo,
@@ -213,32 +197,38 @@ export class ArtifactUploader {
 				const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
 
 				// Remove leading slash from the path to form the S3 key
-				const s3Key = path.startsWith('/') ? path.substring(1) : path;
+				const s3Key = s3Path.startsWith('/') ? s3Path.substring(1) : s3Path;
 
+				const entryStream = file.stream();
 				const upload = new Upload({
 					client: this.s3Client,
 					params: {
 						Bucket: this.bucketName,
 						Key: s3Key,
-						Body: entry,
+						Body: entryStream,
 						ContentType: contentType
 					}
 				});
 				activeUpload = upload;
 
 				await upload.done();
-
 				activeUpload = undefined;
-				activeEntry = undefined;
 			}
 
 			return shallowestIndexHtml;
 		} catch (error) {
-			throw streamError ?? (error instanceof Error ? error : new Error(String(error)));
-		} finally {
-			cleanup();
 			if (activeUpload) {
-				await activeUpload.abort().catch(() => {});
+				await activeUpload.abort().catch((err) => {
+					this.log?.debug({ err }, 'Failed to abort multipart upload during error cleanup');
+				});
+			}
+			throw error;
+		} finally {
+			await rm(tmpFilePath, { force: true }).catch((err) => {
+				this.log?.debug({ err }, 'Failed to remove temporary ZIP file');
+			});
+			if (!zipStream.destroyed) {
+				zipStream.destroy();
 			}
 		}
 	}

@@ -114,7 +114,11 @@ export class ArtifactProcessor {
 				// See https://github.com/aws/aws-sdk-js-v3/issues/7136
 				forcePathStyle: process.env.AWS_S3_USE_PATH_STYLE_ENDPOINT === 'true'
 			});
-		this.uploader = new ArtifactUploader(this.s3Client, this.config.S3_BUCKET_NAME);
+		this.uploader = new ArtifactUploader(
+			this.s3Client,
+			this.config.S3_BUCKET_NAME,
+			this.probot.log
+		);
 	}
 
 	/**

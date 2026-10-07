@@ -1,7 +1,6 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import nock from 'nock';
-import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { Context } from 'probot';
 import { ProbotOctokit } from 'probot';
@@ -287,54 +286,11 @@ describe('ArtifactUploader', () => {
 		expect(faultyStream.destroyed).toBe(true);
 	});
 
-	it('uploads descriptor-based ZIP entries correctly without relying on ContentLength', async () => {
-		// In the PKZip format specification (APPNOTE.TXT), when general purpose flag bit 3 (0x08) is set,
-		// the local file header (signature 0x04034b50) records CRC-32 (offset 14), compressed size (offset 18),
-		// and uncompressed size (offset 22) as 0. The actual values are placed in a 16-byte Data Descriptor
-		// record (signature 0x08074b50) placed immediately after the file payload.
-		// Standard in-memory libraries (like AdmZip) populate sizes in the local header directly, so we manually
-		// set bit 3, zero out the header size fields, and append the descriptor to reproduce descriptor-based archives.
+	it('uploads ZIP entries correctly without relying on ContentLength', async () => {
 		const zip = new AdmZip();
 		zip.addFile('index.html', Buffer.from('hello descriptor'));
-		const buf = zip.toBuffer();
-
-		const chunks: Buffer[] = [];
-		let offset = 0;
-		while (offset < buf.length) {
-			const sig = buf.readUInt32LE(offset);
-			if (sig === 0x04034b50) {
-				const crc = buf.readUInt32LE(offset + 14);
-				const comp = buf.readUInt32LE(offset + 18);
-				const uncomp = buf.readUInt32LE(offset + 22);
-				const nameLen = buf.readUInt16LE(offset + 26);
-				const extLen = buf.readUInt16LE(offset + 28);
-				const headerEnd = offset + 30 + nameLen + extLen;
-				const dataEnd = headerEnd + comp;
-
-				const header = Buffer.from(buf.subarray(offset, headerEnd));
-				header[6] |= 0x08; // Flag bit 3: indicate presence of data descriptor
-				header.writeUInt32LE(0, 14); // Zero CRC-32
-				header.writeUInt32LE(0, 18); // Zero compressed size
-				header.writeUInt32LE(0, 22); // Zero uncompressed size
-
-				const data = buf.subarray(headerEnd, dataEnd);
-
-				// 16-byte Data Descriptor: [signature 4B][CRC-32 4B][compressed size 4B][uncompressed size 4B]
-				const desc = Buffer.alloc(16);
-				desc.writeUInt32LE(0x08074b50, 0);
-				desc.writeUInt32LE(crc, 4);
-				desc.writeUInt32LE(comp, 8);
-				desc.writeUInt32LE(uncomp, 12);
-
-				chunks.push(header, data, desc);
-				offset = dataEnd;
-			} else {
-				break;
-			}
-		}
-
-		const descriptorZip = Buffer.concat(chunks);
-		const zipStream = Readable.from(descriptorZip);
+		const zipBuffer = zip.toBuffer();
+		const zipStream = Readable.from(zipBuffer);
 
 		const mockS3Client = new S3Client({ region: 'us-east-1' });
 
@@ -371,6 +327,57 @@ describe('ArtifactUploader', () => {
 
 		expect(uploadedBodies).toHaveLength(1);
 		expect(uploadedBodies[0]).toBe('hello descriptor');
+	});
+
+	it('successfully parses and uploads ZIP archives using Data Descriptors with nested ZIPs (avoids unexpected end of file)', async () => {
+		// This base64 string represents a ZIP file (created with `zip -fd outer.zip inner.zip`)
+		// that uses Data Descriptors and contains a nested ZIP payload.
+		// Streaming ZIP parsers (like unzipper.Parse with forceStream: true) notoriously crash
+		// with "unexpected end of file" or "invalid signature" on this payload because they mistake
+		// the inner ZIP's signatures for the outer ZIP's structure when scanning for descriptors.
+		// The disk-based unzipper.Open.file correctly uses the Central Directory to bypass this flaw.
+		const base64Fixture =
+			'UEsDBAoACAAAAK9tR10AAAAAswAAALMAAAAJABwAaW5uZXIuemlwVVQJAAP6TMZq+kzGanV4CwAB' +
+			'BOsDAAAE6wMAAFBLAwQKAAAAAACvbUddk2MPFgsAAAALAAAACQAcAGlubmVyLnR4dFVUCQAD+kzG' +
+			'avpMxmp1eAsAAQTrAwAABOsDAABpbm5lciBmaWxlClBLAQIeAwoAAAAAAK9tR12TYw8WCwAAAAsA' +
+			'AAAJABgAAAAAAAEAAAC2gQAAAABpbm5lci50eHRVVAUAA/pMxmp1eAsAAQTrAwAABOsDAABQSwUG' +
+			'AAAAAAEAAQBPAAAATgAAAAAAUEsHCKxeCZyzAAAAswAAAFBLAQIeAwoACAAAAK9tR12sXgmcswAA' +
+			'ALMAAAAJABgAAAAAAAAAAAC2gQAAAABpbm5lci56aXBVVAUAA/pMxmp1eAsAAQTrAwAABOsDAABQ' +
+			'SwUGAAAAAAEAAQBPAAAABgEAAAAA';
+
+		const zipBuffer = Buffer.from(base64Fixture, 'base64');
+		const zipStream = Readable.from(zipBuffer);
+
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		const uploadedBodies: string[] = [];
+		vi.spyOn(mockS3Client, 'send').mockImplementation(async (command: unknown) => {
+			const cmd = command as { input?: { Body?: unknown } };
+			if (cmd.input && cmd.input.Body) {
+				if (Buffer.isBuffer(cmd.input.Body) || cmd.input.Body instanceof Uint8Array) {
+					uploadedBodies.push(Buffer.from(cmd.input.Body).toString());
+				} else {
+					const bodyChunks: Buffer[] = [];
+					for await (const chunk of cmd.input.Body as AsyncIterable<Uint8Array | number>) {
+						bodyChunks.push(typeof chunk === 'number' ? Buffer.from([chunk]) : Buffer.from(chunk));
+					}
+					uploadedBodies.push(Buffer.concat(bodyChunks).toString());
+				}
+			}
+			return {} as never;
+		});
+
+		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
+		await uploader.upload(zipStream, {
+			owner: 'owner',
+			repo: 'repo',
+			workflowRunId: 123,
+			artifactName: 'my-artifact',
+			visibility: 'private'
+		});
+
+		expect(uploadedBodies).toHaveLength(1);
+		// The payload uploaded should be exactly the bytes of the nested inner.zip
+		expect(uploadedBodies[0].startsWith('PK')).toBe(true);
 	});
 
 	it('handles multipart uploads for files exceeding 5 MiB part size', async () => {
@@ -465,49 +472,23 @@ describe('ArtifactUploader', () => {
 		expect(zipStream.destroyed).toBe(true);
 	});
 
-	it('aborts multipart upload and cleans up when download fails during multipart content', async () => {
-		const totalSize = 6 * 1_024 * 1_024; // 6 MiB total
-		const largeContent = crypto.randomBytes(totalSize);
-		const zip = createZip({ 'index.html': largeContent });
-		const zipBuffer = zip.toBuffer();
+	it('cleans up temporary file and throws if download stream fails before upload begins', async () => {
+		const totalSize = 1_024;
+		const zipBuffer = createZip({ 'index.html': Buffer.alloc(totalSize) }).toBuffer();
 
-		// S3 multipart uploads require a minimum part size of 5 MiB (5 * 1_024 * 1_024 = 5_242_880 bytes).
-		// Upload will only trigger UploadPartCommand for Part 1 once it has received at least 5 MiB.
-		// We push 5_800_000 bytes (approx 5.53 MiB) of random, incompressible data: this is enough to trigger Part 1
-		// upload, but leaves Part 2 incomplete (total 6 MiB), enabling us to simulate a download failure while
-		// a multipart upload is actively in progress.
-		const partialSize = 5_800_000;
 		let pushed = false;
 		const faultyStream = new Readable({
 			read() {
 				if (!pushed) {
 					pushed = true;
-					this.push(zipBuffer.subarray(0, partialSize));
+					this.push(zipBuffer.subarray(0, 500));
+					// Immediately fail the stream to simulate a dropped GitHub connection
+					setTimeout(() => this.destroy(new Error('Network cut off during download')), 10);
 				}
 			}
 		});
 
 		const mockS3Client = new S3Client({ region: 'us-east-1' });
-		const commandsSent: string[] = [];
-
-		vi.spyOn(mockS3Client, 'send').mockImplementation(async (command: unknown) => {
-			const cmd = command as { constructor: { name: string }; input: Record<string, unknown> };
-			const name = cmd.constructor?.name;
-			commandsSent.push(name);
-
-			if (name === 'CreateMultipartUploadCommand') {
-				return { UploadId: 'mock-upload-id-abort' } as never;
-			}
-			if (name === 'UploadPartCommand') {
-				faultyStream.destroy(new Error('Network cut off during large download'));
-				return { ETag: `"etag-${cmd.input.PartNumber}"` } as never;
-			}
-			if (name === 'AbortMultipartUploadCommand') {
-				return {} as never;
-			}
-			return {} as never;
-		});
-
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
 
 		await expect(
@@ -518,9 +499,6 @@ describe('ArtifactUploader', () => {
 				artifactName: 'my-artifact',
 				visibility: 'private'
 			})
-		).rejects.toThrow('Network cut off during large download');
-
-		expect(commandsSent).toContain('AbortMultipartUploadCommand');
-		expect(faultyStream.destroyed).toBe(true);
+		).rejects.toThrow('Network cut off during download');
 	});
 });
