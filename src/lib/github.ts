@@ -1,7 +1,7 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { minimatch } from 'minimatch';
 import mime from 'mime-types';
+import { minimatch } from 'minimatch';
 import { Readable } from 'node:stream';
 import type { Context, ProbotOctokit } from 'probot';
 import unzipper from 'unzipper';
@@ -149,55 +149,98 @@ export class ArtifactUploader {
 		let shallowestDepth = Infinity;
 
 		const parser = unzipper.Parse({ forceStream: true });
-		zipStream.on('error', (err) => parser.emit('error', err));
 
-		for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
-			if (entry.type === 'Directory') {
-				entry.autodrain();
-				continue;
+		let activeEntry: unzipper.Entry | undefined;
+		let activeUpload: Upload | undefined;
+		let streamError: Error | undefined;
+
+		const cleanup = (err?: Error) => {
+			if (err && !streamError) {
+				streamError = err;
 			}
-
-			const sanitizedPath = sanitizeZipEntryPath(entry.path);
-			if (!sanitizedPath) {
-				entry.autodrain();
-				continue;
+			const errorToPropagate = streamError ?? err;
+			if (activeEntry && !activeEntry.destroyed) {
+				activeEntry.destroy(errorToPropagate);
 			}
+			if (activeUpload) {
+				// Fire-and-forget because zipStream.on('error', ...) callback is synchronous
+				activeUpload.abort().catch(() => {});
+			}
+			if (!parser.destroyed) {
+				parser.destroy(errorToPropagate);
+			}
+			if (!zipStream.destroyed) {
+				zipStream.destroy(errorToPropagate);
+			}
+		};
 
-			// Update shallowest index.html track
-			if (minimatch(sanitizedPath, '**/index.html', { dot: true })) {
-				const depth = sanitizedPath.split('/').length;
-				if (depth < shallowestDepth) {
-					shallowestDepth = depth;
-					shallowestIndexHtml = sanitizedPath;
+		zipStream.on('error', (err) => {
+			cleanup(err);
+		});
+
+		try {
+			for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
+				activeEntry = entry;
+				try {
+					if (entry.type === 'Directory') {
+						entry.autodrain();
+						continue;
+					}
+
+					const sanitizedPath = sanitizeZipEntryPath(entry.path);
+					if (!sanitizedPath) {
+						entry.autodrain();
+						continue;
+					}
+
+					// Update shallowest index.html track
+					if (minimatch(sanitizedPath, '**/index.html', { dot: true })) {
+						const depth = sanitizedPath.split('/').length;
+						if (depth < shallowestDepth) {
+							shallowestDepth = depth;
+							shallowestIndexHtml = sanitizedPath;
+						}
+					}
+
+					const path = buildArtifactPath(
+						visibility,
+						owner,
+						repo,
+						workflowRunId,
+						artifactName,
+						sanitizedPath
+					);
+					const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
+
+					// Remove leading slash from the path to form the S3 key
+					const s3Key = path.startsWith('/') ? path.substring(1) : path;
+
+					const upload = new Upload({
+						client: this.s3Client,
+						params: {
+							Bucket: this.bucketName,
+							Key: s3Key,
+							Body: entry,
+							ContentType: contentType
+						}
+					});
+					activeUpload = upload;
+
+					await upload.done();
+				} finally {
+					activeUpload = undefined;
+					activeEntry = undefined;
 				}
 			}
 
-			const path = buildArtifactPath(
-				visibility,
-				owner,
-				repo,
-				workflowRunId,
-				artifactName,
-				sanitizedPath
-			);
-			const contentType = mime.lookup(sanitizedPath) || 'application/octet-stream';
-
-			// Remove leading slash from the path to form the S3 key
-			const s3Key = path.startsWith('/') ? path.substring(1) : path;
-
-			const upload = new Upload({
-				client: this.s3Client,
-				params: {
-					Bucket: this.bucketName,
-					Key: s3Key,
-					Body: entry,
-					ContentType: contentType
-				}
-			});
-
-			await upload.done();
+			return shallowestIndexHtml;
+		} catch (error) {
+			throw streamError ?? (error instanceof Error ? error : new Error(String(error)));
+		} finally {
+			cleanup();
+			if (activeUpload) {
+				await activeUpload.abort().catch(() => {});
+			}
 		}
-
-		return shallowestIndexHtml;
 	}
 }

@@ -67,10 +67,22 @@ data "aws_iam_policy_document" "lambda_function" {
   statement {
     sid = "AllowLambdaToUploadArtifactsToS3"
     actions = [
-      "s3:PutObject"
+      "s3:PutObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts"
     ]
     resources = [
       "${module.static_websites.s3_bucket_arn}/*"
+    ]
+  }
+
+  statement {
+    sid = "ListBucketMultipartUploads"
+    actions = [
+      "s3:ListBucketMultipartUploads"
+    ]
+    resources = [
+      module.static_websites.s3_bucket_arn
     ]
   }
 }
@@ -116,7 +128,7 @@ module "lambda_function" {
 
   memory_size            = 512 # MB
   ephemeral_storage_size = 512 # MB
-  timeout                = 60 # Seconds
+  timeout                = 60  # Seconds
 
   // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
@@ -205,6 +217,12 @@ module "static_websites" {
       expiration = {
         days = 7
       }
+    },
+    {
+      id      = "abort-incomplete-multipart-uploads"
+      enabled = true
+
+      abort_incomplete_multipart_upload_days = 1
     }
   ]
 }
