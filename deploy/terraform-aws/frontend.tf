@@ -130,7 +130,7 @@ resource "terraform_data" "invalidation_trigger" {
 
   lifecycle {
     action_trigger {
-      events  = [after_update]
+      events  = [after_create, after_update]
       actions = [action.aws_cloudfront_create_invalidation.custom_error_responses]
     }
   }
