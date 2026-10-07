@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import AdmZip from 'adm-zip';
 import nock from 'nock';
 import { Readable } from 'node:stream';
@@ -144,9 +145,8 @@ describe('ArtifactUploader', () => {
 		// Mark the third entry as a traversal path to simulate an unsafe entry
 		zip.getEntries()[2].entryName = '../../evil.html';
 
-		const mockS3Client = {
-			send: vi.fn().mockResolvedValue({})
-		};
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		vi.spyOn(mockS3Client, 'send').mockResolvedValue({} as never);
 
 		const zipStream = Readable.from(zip.toBuffer());
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
@@ -185,9 +185,8 @@ describe('ArtifactUploader', () => {
 			}).toBuffer()
 		);
 
-		const mockS3Client = {
-			send: vi.fn().mockResolvedValue({})
-		};
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		vi.spyOn(mockS3Client, 'send').mockResolvedValue({} as never);
 
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
 		const shallowest = await uploader.upload(zipStream, {
@@ -209,9 +208,8 @@ describe('ArtifactUploader', () => {
 			}).toBuffer()
 		);
 
-		const mockS3Client = {
-			send: vi.fn().mockResolvedValue({})
-		};
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		vi.spyOn(mockS3Client, 'send').mockResolvedValue({} as never);
 
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
 		const shallowest = await uploader.upload(zipStream, {
@@ -231,9 +229,8 @@ describe('ArtifactUploader', () => {
 				'index.html': Buffer.from('hello')
 			}).toBuffer()
 		);
-		const mockS3Client = {
-			send: vi.fn().mockRejectedValue(new Error('S3 Access Denied'))
-		};
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		vi.spyOn(mockS3Client, 'send').mockRejectedValue(new Error('S3 Access Denied'));
 
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
 
@@ -246,5 +243,31 @@ describe('ArtifactUploader', () => {
 				visibility: 'private'
 			})
 		).rejects.toThrow('S3 Access Denied');
+	});
+
+	it('aborts upload and throws when the download stream emits an error mid-stream', async () => {
+		const zipBuffer = createZip({ 'index.html': Buffer.from('hello') }).toBuffer();
+
+		const faultyStream = new Readable({
+			read() {
+				this.push(zipBuffer.subarray(0, 10)); // push incomplete data
+				this.destroy(new Error('Network failure'));
+			}
+		});
+
+		const mockS3Client = new S3Client({ region: 'us-east-1' });
+		vi.spyOn(mockS3Client, 'send').mockResolvedValue({} as never);
+
+		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
+
+		await expect(
+			uploader.upload(faultyStream, {
+				owner: 'owner',
+				repo: 'repo',
+				workflowRunId: 123,
+				artifactName: 'my-artifact',
+				visibility: 'private'
+			})
+		).rejects.toThrow('Network failure');
 	});
 });

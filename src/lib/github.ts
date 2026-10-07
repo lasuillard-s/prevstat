@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { minimatch } from 'minimatch';
 import mime from 'mime-types';
 import { Readable } from 'node:stream';
@@ -147,9 +148,10 @@ export class ArtifactUploader {
 		let shallowestIndexHtml: string | undefined;
 		let shallowestDepth = Infinity;
 
-		for await (const entry of zipStream.pipe(
-			unzipper.Parse({ forceStream: true })
-		) as AsyncIterable<unzipper.Entry>) {
+		const parser = unzipper.Parse({ forceStream: true });
+		zipStream.on('error', (err) => parser.emit('error', err));
+
+		for await (const entry of zipStream.pipe(parser) as AsyncIterable<unzipper.Entry>) {
 			if (entry.type === 'Directory') {
 				entry.autodrain();
 				continue;
@@ -183,16 +185,17 @@ export class ArtifactUploader {
 			// Remove leading slash from the path to form the S3 key
 			const s3Key = path.startsWith('/') ? path.substring(1) : path;
 
-			await this.s3Client.send(
-				new PutObjectCommand({
+			const upload = new Upload({
+				client: this.s3Client,
+				params: {
 					Bucket: this.bucketName,
 					Key: s3Key,
 					Body: entry,
-					ContentLength: (entry.vars as unzipper.Entry['vars'] & { uncompressedSize: number })
-						.uncompressedSize,
 					ContentType: contentType
-				})
-			);
+				}
+			});
+
+			await upload.done();
 		}
 
 		return shallowestIndexHtml;
