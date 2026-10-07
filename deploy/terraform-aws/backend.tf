@@ -116,7 +116,7 @@ module "lambda_function" {
 
   memory_size            = 256 # MB
   ephemeral_storage_size = 512 # MB
-  timeout                = 180 # Seconds
+  timeout                = 120 # Seconds
 
   // Lambda function URL is not protected by IAM for now
   create_lambda_function_url = true
@@ -143,8 +143,16 @@ module "task_queue" {
 
   name = "${var.app_name}-queue"
 
-  fifo_queue                 = false
-  visibility_timeout_seconds = 300 # 5x of Lambda timeout
+  fifo_queue = false
+
+  # 6x of Lambda timeout (AWS recommendation)
+  # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-lambda-function-trigger.html
+  visibility_timeout_seconds = 720
+
+  create_dlq = true
+  redrive_policy = {
+    maxReceiveCount = 5
+  }
 }
 
 data "aws_iam_policy_document" "for_cloudfront" {
