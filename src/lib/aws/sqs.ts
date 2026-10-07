@@ -187,24 +187,23 @@ export class ArtifactProcessor {
 
 		// Download, find the shallowest index.html, and upload the artifact to S3
 		try {
-			const safeZip = await downloader.download(owner, repo, artifact.id);
-			const shallowestIndexHtml = safeZip.findShallowestEntry('**/index.html');
-			const path = buildArtifactPath(
-				visibility,
-				owner,
-				repo,
-				workflowRunId,
-				artifact.name,
-				shallowestIndexHtml?.entryName ?? 'index.html'
-			);
-			targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
-			await this.uploader.upload(safeZip, {
+			const zipStream = await downloader.downloadStream(owner, repo, artifact.id);
+			const shallowestIndexHtml = await this.uploader.upload(zipStream, {
 				artifactName: artifact.name,
 				visibility,
 				owner,
 				repo,
 				workflowRunId
 			});
+			const path = buildArtifactPath(
+				visibility,
+				owner,
+				repo,
+				workflowRunId,
+				artifact.name,
+				shallowestIndexHtml ?? 'index.html'
+			);
+			targetUrl = `https://${this.config.CLOUDFRONT_DOMAIN}${path}`;
 		} catch (error) {
 			await octokit.rest.checks.create({
 				owner,

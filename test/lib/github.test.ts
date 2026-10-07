@@ -1,10 +1,10 @@
 import AdmZip from 'adm-zip';
 import nock from 'nock';
+import { Readable } from 'node:stream';
 import type { Context } from 'probot';
 import { ProbotOctokit } from 'probot';
 import { describe, expect, it, vi } from 'vitest';
 import { ArtifactDownloader, ArtifactUploader, Repo } from '../../src/lib/github.js';
-import { SafeAdmZip } from '../../src/utils/zip.js';
 
 // Helper function to create an AdmZip instance from a set of files
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -105,7 +105,7 @@ describe('ArtifactDownloader', () => {
 		throttle: { enabled: false }
 	});
 
-	it('downloads and returns artifact zip buffer on success', async () => {
+	it('downloads and returns artifact readable stream on success', async () => {
 		const zip = createZip({
 			'index.html': Buffer.from('hello')
 		});
@@ -114,12 +114,9 @@ describe('ArtifactDownloader', () => {
 			.reply(200, zip.toBuffer(), { 'Content-Type': 'application/zip' });
 
 		const downloader = new ArtifactDownloader(octokit);
-		const result = await downloader.download('owner', 'repo', 101);
+		const result = await downloader.downloadStream('owner', 'repo', 101);
 
-		expect(
-			// @ts-expect-error: Accessing private property for test purposes
-			result.zip.toBuffer()
-		).toEqual(zip.toBuffer());
+		expect(result).toBeInstanceOf(Readable);
 		expect(mock.isDone()).toBe(true);
 		expect(mock.pendingMocks()).toStrictEqual([]);
 	});
@@ -130,7 +127,7 @@ describe('ArtifactDownloader', () => {
 			.reply(500, 'Server Error');
 
 		const downloader = new ArtifactDownloader(octokit);
-		await expect(downloader.download('owner', 'repo', 101)).rejects.toThrow();
+		await expect(downloader.downloadStream('owner', 'repo', 101)).rejects.toThrow();
 		expect(mock.isDone()).toBe(true);
 		expect(mock.pendingMocks()).toStrictEqual([]);
 	});
@@ -147,13 +144,13 @@ describe('ArtifactUploader', () => {
 		// Mark the third entry as a traversal path to simulate an unsafe entry
 		zip.getEntries()[2].entryName = '../../evil.html';
 
-		const safeZip = new SafeAdmZip(zip);
 		const mockS3Client = {
 			send: vi.fn().mockResolvedValue({})
 		};
 
+		const zipStream = Readable.from(zip.toBuffer());
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
-		await uploader.upload(safeZip, {
+		const shallowest = await uploader.upload(zipStream, {
 			owner: 'owner',
 			repo: 'repo',
 			workflowRunId: 123,
@@ -161,6 +158,7 @@ describe('ArtifactUploader', () => {
 			visibility: 'private'
 		});
 
+		expect(shallowest).toBe('index.html');
 		expect(mockS3Client.send).toHaveBeenCalledTimes(2);
 		expect(mockS3Client.send).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -178,11 +176,60 @@ describe('ArtifactUploader', () => {
 		);
 	});
 
+	it('returns the shallowest index.html path from the uploaded files', async () => {
+		const zipStream = Readable.from(
+			createZip({
+				'deep/nested/index.html': Buffer.from('hello'),
+				'shallow/index.html': Buffer.from('hello'),
+				'very/deep/nested/dir/index.html': Buffer.from('hello')
+			}).toBuffer()
+		);
+
+		const mockS3Client = {
+			send: vi.fn().mockResolvedValue({})
+		};
+
+		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
+		const shallowest = await uploader.upload(zipStream, {
+			owner: 'owner',
+			repo: 'repo',
+			workflowRunId: 123,
+			artifactName: 'my-artifact',
+			visibility: 'private'
+		});
+
+		expect(shallowest).toBe('shallow/index.html');
+	});
+
+	it('supports dot-prefixed paths when finding shallowest index.html', async () => {
+		const zipStream = Readable.from(
+			createZip({
+				'.hidden/index.html': Buffer.from('hello'),
+				'assets/main.css': Buffer.from('body {}')
+			}).toBuffer()
+		);
+
+		const mockS3Client = {
+			send: vi.fn().mockResolvedValue({})
+		};
+
+		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
+		const shallowest = await uploader.upload(zipStream, {
+			owner: 'owner',
+			repo: 'repo',
+			workflowRunId: 123,
+			artifactName: 'my-artifact',
+			visibility: 'private'
+		});
+
+		expect(shallowest).toBe('.hidden/index.html');
+	});
+
 	it('throws if S3 client fails to upload a file', async () => {
-		const safeZip = new SafeAdmZip(
+		const zipStream = Readable.from(
 			createZip({
 				'index.html': Buffer.from('hello')
-			})
+			}).toBuffer()
 		);
 		const mockS3Client = {
 			send: vi.fn().mockRejectedValue(new Error('S3 Access Denied'))
@@ -191,7 +238,7 @@ describe('ArtifactUploader', () => {
 		const uploader = new ArtifactUploader(mockS3Client as never, 'test-bucket');
 
 		await expect(
-			uploader.upload(safeZip, {
+			uploader.upload(zipStream, {
 				owner: 'owner',
 				repo: 'repo',
 				workflowRunId: 123,
