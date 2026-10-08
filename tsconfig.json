@@ -1,23 +1,23 @@
 {
-	"compilerOptions": {
-		"incremental": true,
-		"target": "es2022",
-		"module": "nodenext",
-		"declaration": true,
-		"sourceMap": true,
-		"rootDir": ".",
-		"outDir": "./dist",
-		"strict": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"noImplicitReturns": true,
-		"noFallthroughCasesInSwitch": true,
-		"moduleResolution": "nodenext",
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"types": ["node"],
-		"skipLibCheck": true
-	},
-	"include": ["src/", "test/"],
-	"compileOnSave": false
+  "compilerOptions": {
+    "incremental": true,
+    "target": "es2022",
+    "module": "nodenext",
+    "declaration": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": "./dist",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["src/", "test/"],
+  "compileOnSave": false
 }

@@ -1,1 +1,1 @@
-export const APP_NAME = 'Prevstat';
+export const APP_NAME = "Prevstat";

@@ -1,4 +1,4 @@
-import { minimatch } from 'minimatch';
+import { minimatch } from "minimatch";
 
 /**
  * Converts an unknown error to a string message.
@@ -6,10 +6,10 @@ import { minimatch } from 'minimatch';
  * @returns The error message as a string
  */
 export function errorToString(error: unknown): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	return String(error);
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 /**
@@ -20,15 +20,15 @@ export function errorToString(error: unknown): string {
  * @returns True if the value matches any of the patterns (after resolving aliases), false otherwise
  */
 export function matchPatterns(
-	value: string,
-	patterns: string[],
-	aliases: Record<string, string>
+  value: string,
+  patterns: string[],
+  aliases: Record<string, string>,
 ): boolean {
-	for (const pattern of patterns) {
-		const resolvedPattern = aliases[pattern] ?? pattern;
-		if (minimatch(value, resolvedPattern)) {
-			return true;
-		}
-	}
-	return false;
+  for (const pattern of patterns) {
+    const resolvedPattern = aliases[pattern] ?? pattern;
+    if (minimatch(value, resolvedPattern)) {
+      return true;
+    }
+  }
+  return false;
 }

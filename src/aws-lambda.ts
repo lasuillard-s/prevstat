@@ -1,3 +1,3 @@
-import { createLambdaHandler } from './app.js';
+import { createLambdaHandler } from "./app.js";
 
 export const handler = await createLambdaHandler();

@@ -1,12 +1,12 @@
 {
-	"[json][jsonc][yaml]": {
-		"editor.defaultFormatter": "esbenp.prettier-vscode"
-	},
-	"[terraform][terraform-vars]": {
-		"editor.defaultFormatter": "HashiCorp.terraform"
-	},
-	"editor.defaultFormatter": "esbenp.prettier-vscode",
-	"files.associations": {
-		"**/*.tfvars.example": "terraform-vars"
-	}
+  "[json][jsonc][yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[terraform][terraform-vars]": {
+    "editor.defaultFormatter": "HashiCorp.terraform"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.associations": {
+    "**/*.tfvars.example": "terraform-vars"
+  }
 }

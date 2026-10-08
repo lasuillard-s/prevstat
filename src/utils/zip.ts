@@ -1,4 +1,4 @@
-import path from 'node:path';
+import path from "node:path";
 
 /**
  * Safely sanitizes a zip entry name by normalizing separators, removing leading slashes,
@@ -7,19 +7,19 @@ import path from 'node:path';
  * @returns The sanitized safe relative path, or null if invalid or unsafe
  */
 export function sanitizeZipEntryPath(entryName: string): string | null {
-	const normalized = entryName.replace(/\\/g, '/');
-	const posixNormalized = path.posix.normalize(normalized);
-	const cleanPath = posixNormalized.replace(/^\/+/, '');
+  const normalized = entryName.replace(/\\/g, "/");
+  const posixNormalized = path.posix.normalize(normalized);
+  const cleanPath = posixNormalized.replace(/^\/+/, "");
 
-	if (
-		!cleanPath ||
-		cleanPath === '.' ||
-		cleanPath.startsWith('../') ||
-		cleanPath === '..' ||
-		cleanPath.split('/').includes('..')
-	) {
-		return null;
-	}
+  if (
+    !cleanPath ||
+    cleanPath === "." ||
+    cleanPath.startsWith("../") ||
+    cleanPath === ".." ||
+    cleanPath.split("/").includes("..")
+  ) {
+    return null;
+  }
 
-	return cleanPath;
+  return cleanPath;
 }

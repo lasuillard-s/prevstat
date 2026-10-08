@@ -1,5 +1,8 @@
-import { type CloudfrontSignedCookiesOutput, getSignedCookies } from '@aws-sdk/cloudfront-signer';
-import type { AppConfig } from '../../config.js';
+import {
+  type CloudfrontSignedCookiesOutput,
+  getSignedCookies,
+} from "@aws-sdk/cloudfront-signer";
+import type { AppConfig } from "../../config.js";
 
 /**
  * Bakes CloudFront signed cookies for access to the temporary website.
@@ -11,33 +14,33 @@ import type { AppConfig } from '../../config.js';
  * @returns Signed CloudFront cookies
  */
 export function bakeCloudFrontCookies(
-	path: string,
-	expiresAt: Date,
-	config: Readonly<AppConfig>
+  path: string,
+  expiresAt: Date,
+  config: Readonly<AppConfig>,
 ): CloudfrontSignedCookiesOutput {
-	if (path.startsWith('/')) {
-		path = path.substring(1);
-	}
+  if (path.startsWith("/")) {
+    path = path.substring(1);
+  }
 
-	const url = `https://${config.CLOUDFRONT_DOMAIN}/${path}`;
-	const dateLessThan = Math.floor(expiresAt.getTime() / 1_000);
-	const policy = {
-		Statement: [
-			{
-				Resource: url,
-				Condition: {
-					DateLessThan: {
-						'AWS:EpochTime': dateLessThan
-					}
-				}
-			}
-		]
-	};
-	const policyString = JSON.stringify(policy);
+  const url = `https://${config.CLOUDFRONT_DOMAIN}/${path}`;
+  const dateLessThan = Math.floor(expiresAt.getTime() / 1_000);
+  const policy = {
+    Statement: [
+      {
+        Resource: url,
+        Condition: {
+          DateLessThan: {
+            "AWS:EpochTime": dateLessThan,
+          },
+        },
+      },
+    ],
+  };
+  const policyString = JSON.stringify(policy);
 
-	return getSignedCookies({
-		keyPairId: config.CLOUDFRONT_KEY_PAIR_ID,
-		privateKey: config.CLOUDFRONT_PRIVATE_KEY,
-		policy: policyString
-	});
+  return getSignedCookies({
+    keyPairId: config.CLOUDFRONT_KEY_PAIR_ID,
+    privateKey: config.CLOUDFRONT_PRIVATE_KEY,
+    policy: policyString,
+  });
 }

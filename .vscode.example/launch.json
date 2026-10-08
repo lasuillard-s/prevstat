@@ -1,14 +1,14 @@
 {
-	"configurations": [
-		{
-			"name": "Node.js: Nodemon",
-			"type": "node",
-			"request": "launch",
-			"runtimeExecutable": "nodemon",
-			"restart": true,
-			"skipFiles": ["<node_internals>/**"],
-			"console": "integratedTerminal",
-			"internalConsoleOptions": "neverOpen"
-		}
-	]
+  "configurations": [
+    {
+      "name": "Node.js: Nodemon",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "nodemon",
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
 }

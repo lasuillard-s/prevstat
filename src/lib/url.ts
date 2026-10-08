@@ -1,4 +1,4 @@
-import type { AppConfig } from '../config.js';
+import type { AppConfig } from "../config.js";
 
 /**
  * Safely builds the base path for repository-scoped CloudFront signed cookies.
@@ -7,9 +7,13 @@ import type { AppConfig } from '../config.js';
  * @param repo The repository name
  * @returns The safely built URL path for repository scope, starting with a slash
  */
-export function buildRepositoryBasePath(visibility: string, owner: string, repo: string): string {
-	const segments = [visibility, owner, repo].map(encodeURIComponent);
-	return `/${segments.join('/')}`;
+export function buildRepositoryBasePath(
+  visibility: string,
+  owner: string,
+  repo: string,
+): string {
+  const segments = [visibility, owner, repo].map(encodeURIComponent);
+  return `/${segments.join("/")}`;
 }
 
 /**
@@ -23,18 +27,22 @@ export function buildRepositoryBasePath(visibility: string, owner: string, repo:
  * @returns The safely built URL path, starting with a slash
  */
 export function buildArtifactPath(
-	visibility: string,
-	owner: string,
-	repo: string,
-	workflowRunId: string | number,
-	artifactName: string,
-	filePath: string
+  visibility: string,
+  owner: string,
+  repo: string,
+  workflowRunId: string | number,
+  artifactName: string,
+  filePath: string,
 ): string {
-	const baseSegments = [visibility, owner, repo, String(workflowRunId), artifactName].map(
-		encodeURIComponent
-	);
-	const fileSegments = filePath.split('/').map(encodeURIComponent);
-	return `/${[...baseSegments, ...fileSegments].join('/')}`;
+  const baseSegments = [
+    visibility,
+    owner,
+    repo,
+    String(workflowRunId),
+    artifactName,
+  ].map(encodeURIComponent);
+  const fileSegments = filePath.split("/").map(encodeURIComponent);
+  return `/${[...baseSegments, ...fileSegments].join("/")}`;
 }
 
 /**
@@ -43,18 +51,21 @@ export function buildArtifactPath(
  * @param config Application configuration
  * @returns True if valid, false otherwise
  */
-export function isValidDocumentUri(uri: string, config: Readonly<AppConfig>): boolean {
-	try {
-		const parsedUrl = new URL(uri);
-		const expectedHost = config.CLOUDFRONT_DOMAIN;
-		if (parsedUrl.host !== expectedHost) {
-			return false;
-		}
-		if (!parsedUrl.pathname.startsWith('/private/')) {
-			return false;
-		}
-		return true;
-	} catch {
-		return false;
-	}
+export function isValidDocumentUri(
+  uri: string,
+  config: Readonly<AppConfig>,
+): boolean {
+  try {
+    const parsedUrl = new URL(uri);
+    const expectedHost = config.CLOUDFRONT_DOMAIN;
+    if (parsedUrl.host !== expectedHost) {
+      return false;
+    }
+    if (!parsedUrl.pathname.startsWith("/private/")) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }

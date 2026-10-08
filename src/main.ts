@@ -1,10 +1,12 @@
-import { createApp } from './app.js';
+import { createApp } from "./app.js";
 
-const host: string = process.env.HOST || '0.0.0.0';
-const port: number = process.env.PORT ? Number.parseInt(process.env.PORT) : 3000;
+const host: string = process.env.HOST || "0.0.0.0";
+const port: number = process.env.PORT
+  ? Number.parseInt(process.env.PORT)
+  : 3000;
 
 const app = await createApp();
 
 export default app.listen(port, host, () => {
-	app.locals.probot.log.info(`Prevstat is listening on ${host}:${port}`);
+  app.locals.probot.log.info(`Prevstat is listening on ${host}:${port}`);
 });
