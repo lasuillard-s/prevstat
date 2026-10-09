@@ -1,6 +1,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { SQSClient } from "@aws-sdk/client-sqs";
 import serverlessExpress from "@codegenie/serverless-express";
+import cookieParser from "cookie-parser";
 import express from "express";
 import {
   createNodeMiddleware,
@@ -104,6 +105,7 @@ export async function createApp(
   app.locals.config = config;
 
   // Middleware
+  app.use(cookieParser());
   app.use(originVerificationMiddleware);
   app.use(
     await createNodeMiddleware(setupProbot, {

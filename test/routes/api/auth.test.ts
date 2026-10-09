@@ -1,4 +1,5 @@
 import { getSignedCookies } from "@aws-sdk/cloudfront-signer";
+import cookieParser from "cookie-parser";
 import express from "express";
 import jwt from "jsonwebtoken";
 import nock from "nock";
@@ -34,6 +35,7 @@ describe("GET /api/auth router", () => {
       CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: 900,
       JWT_SECRET: "jwt-secret",
       JWT_EXPIRATION_SECONDS: 300,
+      NONCE_COOKIE_EXPIRATION_SECONDS: 300,
       S3_BUCKET_NAME: "test-bucket",
       SQS_QUEUE_URL:
         "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",
@@ -44,6 +46,7 @@ describe("GET /api/auth router", () => {
 
     app = express();
     app.use(express.json());
+    app.use(cookieParser());
     app.locals.probot = probot;
     app.locals.config = appConfig;
     app.use("/api/auth", authRouter);
@@ -122,6 +125,13 @@ describe("GET /api/auth router", () => {
       expect(decoded.documentUri).toBe(
         "https://assets.example.com/private/my-org/my-repo/index.html",
       );
+      expect(decoded.nonce).toBeTruthy();
+
+      const cookies = response.headers.get("set-cookie");
+      expect(cookies).toContain(`oauth_nonce=${decoded.nonce}`);
+      expect(cookies).toContain("HttpOnly");
+      expect(cookies).toContain("Secure");
+      expect(cookies).toContain("SameSite=Lax");
     });
   });
 
@@ -129,10 +139,11 @@ describe("GET /api/auth router", () => {
     const validDocumentUri =
       "https://assets.example.com/private/my-org/my-repo/123/build-output/index.html";
     let validState: string;
+    const validNonce = "test-nonce";
 
     beforeEach(() => {
       validState = jwt.sign(
-        { documentUri: validDocumentUri },
+        { documentUri: validDocumentUri, nonce: validNonce },
         appConfig.JWT_SECRET,
       );
 
@@ -234,16 +245,41 @@ describe("GET /api/auth router", () => {
         });
 
       const badUriState = jwt.sign(
-        { documentUri: "https://assets.example.com/private/my-org" },
+        {
+          documentUri: "https://assets.example.com/private/my-org",
+          nonce: "test-nonce",
+        },
         appConfig.JWT_SECRET,
       );
       const response = await fetch(
         `${serverUrl}/api/auth/callback?code=abc&state=${badUriState}`,
+        { headers: { cookie: "oauth_nonce=test-nonce" } },
       );
       expect(response.status).toBe(400);
       expect(await response.text()).toBe("Invalid redirect URI");
       expect(oauthMock.isDone()).toBe(true);
       expect(oauthMock.pendingMocks()).toStrictEqual([]);
+    });
+
+    it("returns 400 if nonce cookie is missing", async () => {
+      const response = await fetch(
+        `${serverUrl}/api/auth/callback?code=abc&state=${validState}`,
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toBe(
+        "Invalid OAuth flow state (nonce mismatch)",
+      );
+    });
+
+    it("returns 400 if nonce cookie mismatches", async () => {
+      const response = await fetch(
+        `${serverUrl}/api/auth/callback?code=abc&state=${validState}`,
+        { headers: { cookie: "oauth_nonce=wrong-nonce" } },
+      );
+      expect(response.status).toBe(400);
+      expect(await response.text()).toBe(
+        "Invalid OAuth flow state (nonce mismatch)",
+      );
     });
 
     it("returns 403 if user has no read access", async () => {
@@ -265,6 +301,9 @@ describe("GET /api/auth router", () => {
 
       const response = await fetch(
         `${serverUrl}/api/auth/callback?code=abc&state=${validState}`,
+        {
+          headers: { cookie: `oauth_nonce=${validNonce}` },
+        },
       );
       expect(response.status).toBe(403);
       expect(await response.text()).toBe(
@@ -297,6 +336,7 @@ describe("GET /api/auth router", () => {
         `${serverUrl}/api/auth/callback?code=abc&state=${validState}`,
         {
           redirect: "manual",
+          headers: { cookie: `oauth_nonce=${validNonce}` },
         },
       );
 

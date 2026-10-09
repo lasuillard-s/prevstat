@@ -30,6 +30,7 @@ describe("originVerificationMiddleware", () => {
       ORIGIN_VERIFY_SECRET: "test-secret",
       JWT_SECRET: "jwt-secret",
       JWT_EXPIRATION_SECONDS: 300,
+      NONCE_COOKIE_EXPIRATION_SECONDS: 300,
       S3_BUCKET_NAME: "test-bucket",
       SQS_QUEUE_URL:
         "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue",

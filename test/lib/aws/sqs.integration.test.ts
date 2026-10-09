@@ -137,6 +137,7 @@ describe("AWS SQS & S3 Integration with LocalStack", () => {
       CLOUDFRONT_SIGNED_COOKIE_EXPIRATION_SECONDS: 900,
       JWT_SECRET: "jwt-secret",
       JWT_EXPIRATION_SECONDS: 300,
+      NONCE_COOKIE_EXPIRATION_SECONDS: 300,
       S3_BUCKET_NAME: bucketName,
       SQS_QUEUE_URL: queueUrl,
       ARTIFACT_PATTERNS: ["my-org/my-repo:.github/workflows/ci.yaml:build*"],
