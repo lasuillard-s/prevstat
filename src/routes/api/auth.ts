@@ -2,6 +2,7 @@ import { createOAuthUserAuth } from "@octokit/auth-oauth-user";
 import { Octokit } from "@octokit/core";
 import express, { CookieOptions, Request } from "express";
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
 import type { AppConfig } from "../../config.js";
 import { bakeCloudFrontCookies } from "../../lib/aws/cloudfront.js";
 import { Repo } from "../../lib/github.js";
@@ -29,9 +30,11 @@ router.get(
       "/api/auth/callback",
       `https://${config.CLOUDFRONT_DOMAIN}`,
     );
+    const nonce = crypto.randomBytes(16).toString("hex");
     const state = encryptState(
       {
         documentUri: documentUri,
+        nonce: nonce,
       },
       config,
     );
@@ -44,7 +47,15 @@ router.get(
 
     // Redirect to GitHub login
     probot.log.debug(`Redirecting user (${req.ip}) to GitHub login`);
-    return res.redirect(githubOAuthUrl.href);
+    return res
+      .cookie("oauth_nonce", nonce, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 300_000, // 5 minutes
+        path: "/api/auth/callback",
+      })
+      .redirect(githubOAuthUrl.href);
   },
 );
 
@@ -85,6 +96,14 @@ router.get(
       return res
         .status(400)
         .send("Invalid state: redirect URI missing or invalid");
+    }
+
+    const nonceCookie = req.cookies.oauth_nonce;
+    if (!state.nonce || state.nonce !== nonceCookie) {
+      probot.log.error(
+        `Invalid state: nonce mismatch. state.nonce=${state.nonce}, cookie=${nonceCookie}`,
+      );
+      return res.status(400).send("Invalid OAuth flow state (nonce mismatch)");
     }
 
     // Exchange the code for an access token using GitHub OAuth
@@ -162,6 +181,7 @@ router.get(
 
 interface State {
   documentUri: string;
+  nonce: string;
 }
 
 /**
