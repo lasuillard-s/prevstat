@@ -52,7 +52,7 @@ router.get(
         httpOnly: true,
         secure: true,
         sameSite: "lax",
-        maxAge: 300_000, // 5 minutes
+        maxAge: config.NONCE_COOKIE_EXPIRATION_SECONDS * 1_000,
         path: "/api/auth/callback",
       })
       .redirect(githubOAuthUrl.href);
