@@ -6,10 +6,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { CreateQueueCommand, SQSClient } from "@aws-sdk/client-sqs";
 import AdmZip from "adm-zip";
-import fs from "fs";
 import nock from "nock";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, vi } from "vitest";
 import { createLambdaHandler } from "../src/app.js";
 import { test as it } from "./helpers.js";

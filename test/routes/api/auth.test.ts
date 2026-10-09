@@ -1,9 +1,9 @@
 import { getSignedCookies } from "@aws-sdk/cloudfront-signer";
 import express from "express";
-import http from "http";
 import jwt from "jsonwebtoken";
-import { AddressInfo } from "net";
 import nock from "nock";
+import http from "node:http";
+import { AddressInfo } from "node:net";
 import type { Probot } from "probot";
 import { afterEach, beforeEach, describe, expect, vi } from "vitest";
 import { AppConfig } from "../../../src/config.js";

@@ -5,9 +5,9 @@ import {
 } from "@aws-sdk/client-s3";
 import AdmZip from "adm-zip";
 import express from "express";
-import http from "http";
-import { AddressInfo } from "net";
 import nock from "nock";
+import http from "node:http";
+import { AddressInfo } from "node:net";
 import { afterEach, describe, expect } from "vitest";
 import { AppConfig } from "../../../src/config.js";
 import { ProcessArtifactMessage } from "../../../src/lib/aws/sqs.js";

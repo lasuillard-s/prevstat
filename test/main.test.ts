@@ -1,7 +1,7 @@
-import fs from "fs";
-import type { AddressInfo } from "net";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs";
+import type { AddressInfo } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

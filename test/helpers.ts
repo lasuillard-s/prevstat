@@ -1,8 +1,8 @@
 import { LocalstackContainer } from "@testcontainers/localstack";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Probot, ProbotOctokit } from "probot";
-import { fileURLToPath } from "url";
 import { test as baseTest } from "vitest";
 import { setupProbotApp } from "../src/app.js";
 import { AppConfig } from "../src/config.js";
