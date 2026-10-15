@@ -45,7 +45,7 @@
     "minimatch": "10.2.6",
     "probot": "14.3.2",
     "unzipper": "0.12.5",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devEngines": {
     "runtime": {
