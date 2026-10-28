@@ -69,7 +69,7 @@
     "@types/express": "5.0.6",
     "@types/jsonwebtoken": "9.0.10",
     "@types/mime-types": "3.0.1",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.5",
     "@types/unzipper": "0.10.11",
     "@vitest/coverage-v8": "5.0.5",
     "@vitest/ui": "5.0.5",
