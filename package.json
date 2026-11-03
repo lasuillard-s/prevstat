@@ -43,7 +43,7 @@
     "jsonwebtoken": "9.0.3",
     "mime-types": "3.0.2",
     "minimatch": "11.0.1",
-    "probot": "14.3.2",
+    "probot": "14.3.5",
     "unzipper": "0.12.5",
     "zod": "4.6.7"
   },
