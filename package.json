@@ -71,8 +71,8 @@
     "@types/mime-types": "3.0.1",
     "@types/node": "24.19.2",
     "@types/unzipper": "0.10.11",
-    "@vitest/coverage-v8": "5.0.5",
-    "@vitest/ui": "5.0.5",
+    "@vitest/coverage-v8": "5.1.0",
+    "@vitest/ui": "5.1.0",
     "adm-zip": "0.6.1",
     "esbuild": "0.28.2",
     "esbuild-plugin-clean": "1.0.1",
@@ -87,7 +87,7 @@
     "testcontainers": "12.2.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true
