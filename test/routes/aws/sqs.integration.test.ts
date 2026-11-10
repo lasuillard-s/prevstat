@@ -79,9 +79,8 @@ describe("POST /aws/sqs router", () => {
     app.locals.s3Client = s3;
     app.use("/aws", awsRouter);
 
-    server = http.createServer(app);
     await new Promise<void>((resolve) => {
-      server.listen(0, () => {
+      server = app.listen(0, () => {
         const port = (server.address() as AddressInfo).port;
         serverUrl = `http://127.0.0.1:${port}`;
         resolve();
