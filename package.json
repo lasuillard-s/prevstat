@@ -90,6 +90,9 @@
     "vitest": "^5.1.0"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true
+    "cpu-features@0.0.10": false,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.5": false,
+    "ssh2@1.17.0": false
   }
 }
