@@ -5,25 +5,6 @@
   ],
   "packageRules": [
     {
-      "description": "Group non-major runtime dependencies except the existing AWS SDK group",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchDepTypes": [
-        "dependencies"
-      ],
-      "matchPackageNames": [
-        "!@aws-sdk/**"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "Runtime Dependencies (non-major)",
-      "groupSlug": "runtime-dependencies",
-      "automerge": false
-    },
-    {
       "description": "Group non-major Terraform provider updates monthly",
       "matchManagers": [
         "terraform"
